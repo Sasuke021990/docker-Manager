@@ -1,0 +1,26 @@
+<%# State badge C-11: shape + word; colour is never the only carrier (NFR-041). %>
+<%
+  const st = (typeof state !== 'undefined' ? state : 'exited');
+  const health = (typeof health !== 'undefined' ? health : null);
+  const status = (typeof status !== 'undefined' ? status : '');
+  const map = {
+    running:    { cls: 'run',        icon: 'dot-filled',    label: 'Running' },
+    exited:     { cls: 'stopped',    icon: 'square',        label: 'Exited' },
+    created:    { cls: 'stopped',    icon: 'circle-hollow', label: 'Created' },
+    paused:     { cls: 'paused',     icon: 'pause',         label: 'Paused' },
+    restarting: { cls: 'restarting', icon: 'restart',       label: 'Restarting' },
+    dead:       { cls: 'dead',       icon: 'cross',         label: 'Dead' }
+  };
+  const b = map[st] || { cls: 'stopped', icon: 'circle-hollow', label: st };
+%>
+<span class="state-badge state-<%= b.cls %>" title="<%= status %>">
+  <span class="sr-only">State: </span>
+  <svg class="state-icon" aria-hidden="true"><use href="/assets/icons.svg#i-<%= b.icon %>"></use></svg>
+  <span class="state-label"><%= b.label %></span>
+</span>
+<% if (health === 'unhealthy') { %>
+  <span class="state-badge state-dead" title="<%= status %>">
+    <svg class="state-icon" aria-hidden="true"><use href="/assets/icons.svg#i-alert-triangle"></use></svg>
+    <span class="state-label">Unhealthy</span>
+  </span>
+<% } %>

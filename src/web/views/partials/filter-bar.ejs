@@ -1,0 +1,42 @@
+<%# Filter bar C-08: chips are links (JS-off filtering), counts from one payload. %>
+<%
+  const q = (typeof query !== 'undefined' && query) ? query : { state: 'all', q: '', sort: 'name', dir: 'asc' };
+  const hrefFor = (state) => '?state=' + state
+    + (q.q ? '&q=' + encodeURIComponent(q.q) : '')
+    + (q.sort !== 'name' ? '&sort=' + q.sort : '')
+    + (q.dir !== 'asc' ? '&dir=' + q.dir : '');
+  const filtered = q.state !== 'all' || q.q || q.sort !== 'name' || q.dir !== 'asc';
+%>
+<div class="filter-bar" data-filter-bar>
+  <div class="chip-group" role="group" aria-label="Filter by state">
+    <a class="chip<%= q.state === 'all' ? ' is-active' : '' %>" href="<%= hrefFor('all') %>" aria-pressed="<%= q.state === 'all' %>">All <span class="chip-count"><%= counts.all %></span></a>
+    <a class="chip<%= q.state === 'running' ? ' is-active' : '' %>" href="<%= hrefFor('running') %>" aria-pressed="<%= q.state === 'running' %>">Running <span class="chip-count"><%= counts.running %></span></a>
+    <a class="chip<%= q.state === 'stopped' ? ' is-active' : '' %>" href="<%= hrefFor('stopped') %>" aria-pressed="<%= q.state === 'stopped' %>">Stopped <span class="chip-count"><%= counts.stopped %></span></a>
+    <a class="chip<%= q.state === 'paused' ? ' is-active' : '' %>" href="<%= hrefFor('paused') %>" aria-pressed="<%= q.state === 'paused' %>">Paused <span class="chip-count"><%= counts.paused %></span></a>
+  </div>
+  <div class="filter-search">
+    <svg class="icon search-icon" aria-hidden="true"><use href="/assets/icons.svg#i-search"></use></svg>
+    <input type="search" id="filter-input" class="input" placeholder="Filter by name or image" aria-label="Filter by name or image" value="<%= q.q %>" data-filter-input>
+    <kbd class="hint-key">/</kbd>
+  </div>
+  <div class="filter-sort">
+    <label class="sr-only" for="sort-select">Sort</label>
+    <select id="sort-select" class="input select" data-sort-select>
+      <option value="name"<%= q.sort === 'name' ? ' selected' : '' %>>Sort: Name</option>
+      <option value="image"<%= q.sort === 'image' ? ' selected' : '' %>>Sort: Image</option>
+      <option value="state"<%= q.sort === 'state' ? ' selected' : '' %>>Sort: State</option>
+      <option value="created"<%= q.sort === 'created' ? ' selected' : '' %>>Sort: Created</option>
+    </select>
+  </div>
+  <% if (filtered) { %>
+    <div class="filter-meta">
+      <span class="filter-shown" data-shown-count><%= counts.all %> of <%= counts.all %> shown</span>
+      <a class="text-btn" href="/containers">Clear filters</a>
+    </div>
+  <% } else { %>
+    <div class="filter-meta" hidden>
+      <span class="filter-shown" data-shown-count></span>
+      <a class="text-btn" href="/containers">Clear filters</a>
+    </div>
+  <% } %>
+</div>

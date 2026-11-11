@@ -1,0 +1,46 @@
+<%# Container table C-09: real <table>, 56 px rows, state bar + badge. %>
+<table class="container-table" data-container-table>
+  <caption class="sr-only">Containers on <%= hostFrame.name %></caption>
+  <thead>
+    <tr>
+      <th scope="col" class="col-state">State</th>
+      <th scope="col" class="col-name" aria-sort="<%= query.sort === 'name' ? (query.dir === 'desc' ? 'descending' : 'ascending') : 'none' %>">
+        <a class="th-sort" href="?state=<%= query.state %><%= query.q ? '&q=' + encodeURIComponent(query.q) : '' %>&sort=name&dir=<%= query.sort === 'name' && query.dir === 'asc' ? 'desc' : 'asc' %>">Name</a>
+      </th>
+      <th scope="col" class="col-image" aria-sort="<%= query.sort === 'image' ? (query.dir === 'desc' ? 'descending' : 'ascending') : 'none' %>">
+        <a class="th-sort" href="?state=<%= query.state %><%= query.q ? '&q=' + encodeURIComponent(query.q) : '' %>&sort=image&dir=<%= query.sort === 'image' && query.dir === 'asc' ? 'desc' : 'asc' %>">Image</a>
+      </th>
+      <th scope="col" class="col-ports">Ports</th>
+      <th scope="col" class="col-upexit" aria-sort="<%= query.sort === 'state' ? (query.dir === 'desc' ? 'descending' : 'ascending') : 'none' %>">
+        <a class="th-sort" href="?state=<%= query.state %><%= query.q ? '&q=' + encodeURIComponent(query.q) : '' %>&sort=state&dir=<%= query.sort === 'state' && query.dir === 'asc' ? 'desc' : 'asc' %>">Up / Exit</a>
+      </th>
+      <th scope="col" class="col-restarts">Restarts</th>
+    </tr>
+  </thead>
+  <tbody>
+    <% rows.forEach((row) => { %>
+      <tr class="row-<%= row.state %><%= row.self ? ' row-self' : '' %>" data-id="<%= row.id %>" data-name="<%= row.name %>" data-image="<%= row.image %>" data-state="<%= row.state %>" data-row-link data-href="/containers/<%= row.id %>">
+        <td class="col-state">
+          <%- include('state-badge', { state: row.state, health: row.health, status: row.status }) %>
+        </td>
+        <th scope="row" class="col-name">
+          <a class="row-link" href="/containers/<%= row.id %>" data-row-link><%= row.name %></a>
+          <% if (row.self) { %><span class="self-tag" title="Docker Manager runs in this container">self</span><% } %>
+          <% if (row.hasNote) { %><span class="note-tag" title="Operator note set"><svg class="icon" aria-hidden="true"><use href="/assets/icons.svg#i-info"></use></svg></span><% } %>
+        </th>
+        <td class="col-image mono" title="<%= row.image %>"><%= row.image %></td>
+        <td class="col-ports">
+          <%- include('ports', { portList: row.ports }) %>
+        </td>
+        <td class="col-upexit numeric"><%= f.upExit(row) %></td>
+        <td class="col-restarts numeric">
+          <% if (row.restarts === null) { %>
+            <span class="partial" title="Container detail timed out">—</span>
+          <% } else { %>
+            <%= row.restarts %>
+          <% } %>
+        </td>
+      </tr>
+    <% }) %>
+  </tbody>
+</table>

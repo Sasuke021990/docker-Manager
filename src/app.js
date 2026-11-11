@@ -13,6 +13,8 @@ const { bodyLimit } = require('./web/middleware/body');
 const { notFound, errorHandler } = require('./web/middleware/errors');
 const { healthRouter } = require('./web/routes/health');
 const { assetsRouter } = require('./web/routes/assets');
+const { pagesRouter } = require('./web/routes/pages');
+const { apiRouter } = require('./web/routes/api');
 
 function createApp(ctx) {
   const { log } = ctx;
@@ -48,6 +50,8 @@ function createApp(ctx) {
 
   app.use(assetsRouter());
   app.use(healthRouter(ctx));
+  app.use(pagesRouter(ctx));
+  app.use(apiRouter(ctx));
 
   app.use(notFound);
   app.use(errorHandler(log));

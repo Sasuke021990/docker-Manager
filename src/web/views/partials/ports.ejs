@@ -1,0 +1,27 @@
+<%# Port chips C-12: published "0.0.0.0:8080→80", unpublished "5432/tcp" muted. %>
+<%
+  const ports = (typeof portList !== 'undefined' && portList) ? portList : [];
+  const published = ports.filter((p) => p.hostPort);
+  const unpublished = ports.filter((p) => !p.hostPort);
+  const label = (p) => {
+    let ip = p.hostIp || '0.0.0.0';
+    if (ip.includes(':')) ip = '[' + ip + ']';
+    return ip + ':' + p.hostPort + '→' + p.containerPort;
+  };
+%>
+<% if (!ports.length) { %>
+  <span class="port-empty" title="No ports">—</span>
+<% } else { %>
+  <% published.slice(0, 2).forEach((p) => { %>
+    <span class="port-chip"><%= label(p) %></span>
+  <% }) %>
+  <% if (published.length > 2) { %>
+    <span class="port-chip port-more" title="<%= published.slice(2).map(label).join(', ') %>">+<%= published.length - 2 %></span>
+  <% } %>
+  <% unpublished.slice(0, 2).forEach((p) => { %>
+    <span class="port-plain"><%= p.containerPort %>/<%= p.proto %></span>
+  <% }) %>
+  <% if (unpublished.length > 2) { %>
+    <span class="port-plain port-more" title="<%= unpublished.slice(2).map((p) => p.containerPort + '/' + p.proto).join(', ') %>">+<%= unpublished.length - 2 %></span>
+  <% } %>
+<% } %>

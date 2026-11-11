@@ -1,0 +1,47 @@
+<!doctype html>
+<html lang="en" data-theme="<%= theme %>">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title><%= (typeof title !== 'undefined' && title) ? title + ' · Docker Manager' : 'Docker Manager' %></title>
+  <link rel="stylesheet" href="/assets/app.css">
+  <meta name="csrf-token" content="<%= csrfToken %>">
+  <script src="/assets/app.js" defer></script>
+</head>
+<body>
+  <a class="skip-link" href="#main">Skip to content</a>
+  <header class="app-header" role="banner">
+    <div class="app-header-inner">
+      <a class="brand" href="/containers">
+        <svg class="brand-glyph" aria-hidden="true"><use href="/assets/icons.svg#i-container"></use></svg>
+        <span class="brand-name">Docker Manager</span>
+      </a>
+      <nav class="nav" aria-label="Primary">
+        <a class="nav-link<%= currentPath.startsWith('/containers') ? ' is-active' : '' %>" href="/containers"<%= currentPath.startsWith('/containers') ? ' aria-current="page"' : '' %>>Containers</a>
+        <a class="nav-link<%= currentPath.startsWith('/images') ? ' is-active' : '' %>" href="/images"<%= currentPath.startsWith('/images') ? ' aria-current="page"' : '' %>>Images</a>
+        <a class="nav-link<%= currentPath.startsWith('/volumes') ? ' is-active' : '' %>" href="/volumes"<%= currentPath.startsWith('/volumes') ? ' aria-current="page"' : '' %>>Volumes</a>
+        <a class="nav-link<%= currentPath.startsWith('/networks') ? ' is-active' : '' %>" href="/networks"<%= currentPath.startsWith('/networks') ? ' aria-current="page"' : '' %>>Networks</a>
+      </nav>
+      <div class="header-cluster">
+        <span class="host-chip" title="Active host — switch in Settings (config.json)">
+          <span class="dot <%= hostFrame.state === 'reachable' ? 'dot-run' : (hostFrame.state === 'too-old' ? 'dot-dead' : 'dot-stopped') %>"></span>
+          <span class="host-name"><%= hostFrame.name %></span>
+        </span>
+        <% if (hostFrame.apiVersion) { %><span class="api-chip">API <%= hostFrame.apiVersion %></span><% } %>
+        <span class="conn-pill conn-<%= hostFrame.state === 'reachable' ? 'live' : 'offline' %>" id="conn-pill">
+          <span class="conn-dot" aria-hidden="true"></span>
+          <span class="conn-text" aria-live="polite"><%= hostFrame.state === 'reachable' ? 'Live' : 'Offline' %></span>
+        </span>
+        <button class="icon-btn" id="theme-toggle" type="button" aria-pressed="<%= theme === 'dark' ? 'true' : 'false' %>" aria-label="Switch to dark theme">
+          <svg class="icon" aria-hidden="true"><use href="/assets/icons.svg#i-<%= theme === 'dark' ? 'sun' : 'moon' %>"></use></svg>
+        </button>
+      </div>
+    </div>
+  </header>
+  <main id="main" class="page">
+    <%- body %>
+  </main>
+  <footer class="app-foot">Docker Manager <%= appVersion %> · <%= hostFrame.apiVersion ? 'API ' + hostFrame.apiVersion + ' · ' : '' %>private network, no authentication</footer>
+  <div class="toast-stack" id="toasts"></div>
+</body>
+</html>

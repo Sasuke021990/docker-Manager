@@ -11,6 +11,7 @@ const { Bus } = require('./core/bus');
 const { createActivity } = require('./core/activity');
 const { createLimiter } = require('./core/limits');
 const { createPool } = require('./docker/pool');
+const { createQueries } = require('./docker/queries');
 const { resolveSelf } = require('./docker/self');
 const { createApp } = require('./app');
 
@@ -30,10 +31,11 @@ async function main() {
   const activity = createActivity(bus);
   const limiter = createLimiter();
   const pool = createPool({ env, log, bus, store });
+  const queries = createQueries({ pool, store, log });
   pool.syncHosts();
 
   const shutdownHooks = [];
-  const app = createApp({ env, log, store, bus, pool, activity, limiter, shutdownHooks });
+  const app = createApp({ env, log, store, bus, pool, queries, activity, limiter, shutdownHooks });
 
   const server = app.listen(env.port, env.bindAddress, () => {
     log.info('boot', { port: env.port, bind: env.bindAddress, configState: store.getState() });

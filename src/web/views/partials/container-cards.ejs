@@ -1,0 +1,21 @@
+<%# Container cards C-10 (< 720 px). The card is the tap target. %>
+<div class="container-cards" data-container-cards>
+  <% rows.forEach((row) => { %>
+    <a class="card-<%= row.state %><%= row.self ? ' row-self' : '' %>" href="/containers/<%= row.id %>" data-id="<%= row.id %>" data-name="<%= row.name %>" data-image="<%= row.image %>" data-state="<%= row.state %>" data-row-link>
+      <div class="card-top">
+        <%- include('state-badge', { state: row.state, health: row.health, status: row.status }) %>
+      </div>
+      <div class="card-name"><%= row.name %><% if (row.self) { %> <span class="self-tag">self</span><% } %></div>
+      <div class="card-image mono"><%= row.image %></div>
+      <div class="card-meta">
+        <span class="card-ports">
+          <% const pub = row.ports.filter((p) => p.hostPort); %>
+          <% if (pub.length) { %><%= pub[0].hostPort %>→<%= pub[0].containerPort %><% } else if (row.ports.length) { %><%= row.ports[0].containerPort %>/<%= row.ports[0].proto %><% } else { %>—<% } %>
+        </span>
+        <span>·</span>
+        <span class="numeric"><%= f.upExit(row) %></span>
+        <% if (row.restarts !== null) { %><span>·</span><span class="numeric"><%= row.restarts %> restarts</span><% } %>
+      </div>
+    </a>
+  <% }) %>
+</div>

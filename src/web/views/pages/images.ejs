@@ -1,0 +1,73 @@
+<div class="page-head">
+  <div>
+    <h1>Images</h1>
+    <p class="page-sub">
+      <%= images.length + dangling.length %> images<% if (dangling.length) { %> · <%= dangling.length %> dangling<% } %>
+      <% if (df && df.layersSize !== null) { %> · Images <%= f.bytes(df.layersSize) %><% } %>
+      <% if (df && df.buildCache !== null) { %> · Build cache <%= f.bytes(df.buildCache) %><% } %>
+    </p>
+  </div>
+</div>
+
+<section class="page-body">
+  <% if (error) { %>
+    <div class="error-banner" role="alert">
+      <div class="error-banner-text">
+        <strong>Could not reach Docker</strong>
+        <p class="mono"><%= error.message %></p>
+      </div>
+      <a class="btn" href="/images">Retry</a>
+    </div>
+  <% } %>
+
+  <% if (!error && !images.length && !dangling.length) { %>
+    <div class="empty-state">
+      <svg class="icon empty-icon" aria-hidden="true"><use href="/assets/icons.svg#i-box"></use></svg>
+      <p>No images on this host.</p>
+    </div>
+  <% } %>
+
+  <% if (images.length || dangling.length) { %>
+    <div class="table-wrap">
+      <table class="resource-table">
+        <caption class="sr-only">Images on <%= hostFrame.name %></caption>
+        <thead>
+          <tr>
+            <th scope="col">Repository:Tag</th>
+            <th scope="col">ID</th>
+            <th scope="col">Size</th>
+            <th scope="col">Created</th>
+            <th scope="col">Used by</th>
+          </tr>
+        </thead>
+        <tbody>
+          <% images.forEach((img) => { %>
+            <tr data-row-link data-href="/images/<%= img.id %>" data-name="<%= img.repoTag %>">
+              <th scope="row" class="mono"><a class="row-link" href="/images/<%= img.id %>"><%= img.repoTag %></a></th>
+              <td class="mono"><%= img.idShort %></td>
+              <td class="numeric"><%= f.bytes(img.size) %></td>
+              <td><%= f.date(img.created) %></td>
+              <td class="numeric"><%= img.usedBy %></td>
+            </tr>
+          <% }) %>
+          <% if (dangling.length) { %>
+            <tr class="group-row"><th scope="colgroup" colspan="5">Dangling (<%= dangling.length %>) <span class="group-note">no tags</span></th></tr>
+            <% dangling.forEach((img) => { %>
+              <tr data-row-link data-href="/images/<%= img.id %>" data-name="<%= img.repoTag %>">
+                <th scope="row" class="mono"><a class="row-link" href="/images/<%= img.id %>"><%= img.repoTag %></a></th>
+                <td class="mono"><%= img.idShort %></td>
+                <td class="numeric"><%= f.bytes(img.size) %></td>
+                <td><%= f.date(img.created) %></td>
+                <td class="numeric"><%= img.usedBy %></td>
+              </tr>
+            <% }) %>
+          <% } %>
+        </tbody>
+      </table>
+    </div>
+  <% } %>
+</section>
+
+<% if (detail) { %>
+  <%- include('../partials/resource-drawer', { kind: detail.kind, item: detail.item }) %>
+<% } %>

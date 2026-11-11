@@ -1,0 +1,58 @@
+<div class="page-head">
+  <div>
+    <h1>Containers</h1>
+    <p class="page-sub">
+      <%= counts.all %> containers · <%= counts.running %> running · <%= counts.stopped %> stopped · <%= counts.paused %> paused
+      <% if (hostFrame.engineVersion) { %> · daemon <%= hostFrame.engineVersion %><% } %>
+    </p>
+  </div>
+  <div class="page-actions">
+    <a class="btn" href="/containers?state=<%= query.state %><%= query.q ? '&q=' + encodeURIComponent(query.q) : '' %><%= query.sort !== 'name' ? '&sort=' + query.sort : '' %><%= query.dir !== 'asc' ? '&dir=' + query.dir : '' %>" title="Re-sync now (the list updates automatically)">
+      <svg class="icon" aria-hidden="true"><use href="/assets/icons.svg#i-refresh"></use></svg>
+      Refresh
+    </a>
+  </div>
+</div>
+
+<section class="page-body">
+  <% if (error) { %>
+    <div class="error-banner" role="alert">
+      <div class="error-banner-text">
+        <strong>Could not reach Docker</strong>
+        <p class="mono"><%= error.message %></p>
+      </div>
+      <a class="btn" href="/containers">Retry</a>
+    </div>
+  <% } %>
+
+  <%- include('../partials/filter-bar', { counts, query }) %>
+
+  <% if (!rows.length && !error) { %>
+    <% if (query.state !== 'all' || query.q) { %>
+      <div class="empty-state empty-inline">
+        <p>No containers match <% if (query.q) { %>“<%= query.q %>”<% } else { %><%= query.state %><% } %>. <a href="/containers">Clear filters</a></p>
+      </div>
+    <% } else { %>
+      <div class="empty-state">
+        <svg class="icon empty-icon" aria-hidden="true"><use href="/assets/icons.svg#i-container"></use></svg>
+        <p>No containers on this host. Run <code>docker compose up -d</code> or start one from the CLI and it will appear here.</p>
+      </div>
+    <% } %>
+  <% } %>
+
+  <% if (rows.length) { %>
+    <div class="table-wrap">
+      <%- include('../partials/container-table', { rows, query, hostFrame }) %>
+    </div>
+    <%- include('../partials/container-cards', { rows }) %>
+    <p class="list-foot">
+      <span data-total-count><%= rows.length %> rows</span>
+      · updated <span data-updated-at="<%= updatedAt %>"><%= f.relTime(updatedAt) %></span>
+      · <%= hostFrame.state === 'reachable' ? 'live' : 'offline' %>
+    </p>
+  <% } %>
+</section>
+
+<% if (detail) { %>
+  <%- include('../partials/drawer', { detail, tabName: (typeof tabName !== 'undefined' ? tabName : 'overview') }) %>
+<% } %>

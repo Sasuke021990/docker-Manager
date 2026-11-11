@@ -1,0 +1,60 @@
+<%# Resource drawer C-22: read-only inspect subset for image/volume/network. %>
+<aside class="drawer-shell is-open" id="drawer" data-drawer>
+  <div class="drawer-scrim" data-drawer-close></div>
+  <div class="drawer-panel" role="complementary" aria-labelledby="drawer-title">
+    <header class="drawer-head">
+      <div class="drawer-head-text">
+        <h2 id="drawer-title" class="mono"><%= kind === 'image' ? item.repoTag : item.name %></h2>
+        <p class="drawer-sub"><%= kind === 'image' ? 'Image' : (kind === 'volume' ? 'Volume' : 'Network') %></p>
+      </div>
+      <a class="icon-btn drawer-close" href="/<%= kind === 'network' ? 'networks' : (kind === 'volume' ? 'volumes' : 'images') %>" data-drawer-close aria-label="Close details">
+        <svg class="icon" aria-hidden="true"><use href="/assets/icons.svg#i-close"></use></svg>
+      </a>
+    </header>
+    <div class="drawer-body">
+      <section class="drawer-block">
+        <ul class="kv-list">
+          <% if (kind === 'image') { %>
+            <li class="kv-row"><span class="kv-key">ID</span><span class="kv-value mono copy-field"><%= item.idShort %><button class="icon-btn copy-btn" type="button" data-copy="<%= item.id %>" aria-label="Copy image ID"><svg class="icon" aria-hidden="true"><use href="/assets/icons.svg#i-copy"></use></svg></button></span></li>
+            <li class="kv-row"><span class="kv-key">Tags</span><span class="kv-value mono"><%= item.repoTags.length ? item.repoTags.join(' · ') : '—' %></span></li>
+            <li class="kv-row"><span class="kv-key">Digests</span><span class="kv-value mono"><%= item.repoDigests.length ? item.repoDigests.join(' · ') : '—' %></span></li>
+            <li class="kv-row"><span class="kv-key">Size</span><span class="kv-value numeric"><%= f.bytes(item.size) %></span></li>
+            <li class="kv-row"><span class="kv-key">Created</span><span class="kv-value"><%= f.dateTime(item.created) %></span></li>
+            <li class="kv-row"><span class="kv-key">Platform</span><span class="kv-value mono"><%= item.os || '—' %>/<%= item.architecture || '—' %></span></li>
+            <li class="kv-row"><span class="kv-key">Env names</span><span class="kv-value mono"><%= item.envNames.length ? item.envNames.join(' · ') : '—' %></span></li>
+          <% } else if (kind === 'volume') { %>
+            <li class="kv-row"><span class="kv-key">Name</span><span class="kv-value mono"><%= item.name %></span></li>
+            <li class="kv-row"><span class="kv-key">Driver</span><span class="kv-value mono"><%= item.driver %></span></li>
+            <li class="kv-row"><span class="kv-key">Mount point</span><span class="kv-value mono copy-field"><%= item.mountpoint %><button class="icon-btn copy-btn" type="button" data-copy="<%= item.mountpoint %>" aria-label="Copy mount point"><svg class="icon" aria-hidden="true"><use href="/assets/icons.svg#i-copy"></use></svg></button></span></li>
+            <li class="kv-row"><span class="kv-key">Scope</span><span class="kv-value"><%= item.scope %></span></li>
+            <li class="kv-row"><span class="kv-key">Created</span><span class="kv-value"><%= f.dateTime(item.created) %></span></li>
+            <% if (item.usage) { %>
+              <li class="kv-row"><span class="kv-key">Usage</span><span class="kv-value numeric"><%= f.bytes(item.usage.size) %> · <%= item.usage.refCount === null ? '—' : item.usage.refCount + ' refs' %></span></li>
+            <% } %>
+          <% } else { %>
+            <li class="kv-row"><span class="kv-key">ID</span><span class="kv-value mono"><%= item.idShort %></span></li>
+            <li class="kv-row"><span class="kv-key">Driver</span><span class="kv-value mono"><%= item.driver %></span></li>
+            <li class="kv-row"><span class="kv-key">Scope</span><span class="kv-value"><%= item.scope %></span></li>
+            <li class="kv-row"><span class="kv-key">Internal</span><span class="kv-value"><%= item.internal ? 'yes' : 'no' %></span></li>
+            <li class="kv-row"><span class="kv-key">IPAM</span><span class="kv-value mono"><%= item.ipam.length ? item.ipam.map((c) => (c.Subnet || '—') + (c.Gateway ? ' (' + c.Gateway + ')' : '')).join(' · ') : '—' %></span></li>
+            <li class="kv-row"><span class="kv-key">Containers</span><span class="kv-value">
+              <% if (!item.containers.length) { %>—<% } %>
+              <% item.containers.forEach((c) => { %>
+                <a href="/containers/<%= c.id %>"><%= c.name %></a><% if (c.ip) { %> <span class="mono"><%= c.ip %></span><% } %>
+              <% }) %>
+            </span></li>
+          <% } %>
+        </ul>
+      </section>
+      <% const keys = Object.keys(item.labels || {}).sort(); %>
+      <% if (keys.length) { %>
+        <section class="drawer-block">
+          <h3 class="block-title">Labels</h3>
+          <ul class="kv-list mono">
+            <% keys.forEach((k) => { %><li class="kv-value"><%= k %>=<%= item.labels[k] %></li><% }) %>
+          </ul>
+        </section>
+      <% } %>
+    </div>
+  </div>
+</aside>

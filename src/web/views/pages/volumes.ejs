@@ -1,0 +1,62 @@
+<div class="page-head">
+  <div>
+    <h1>Volumes</h1>
+    <p class="page-sub">
+      <%= volumes.length %> volumes
+      <% if (df && df.volumesSize !== null) { %> · Volumes <%= f.bytes(df.volumesSize) %><% } %>
+    </p>
+  </div>
+</div>
+
+<section class="page-body">
+  <% if (error) { %>
+    <div class="error-banner" role="alert">
+      <div class="error-banner-text">
+        <strong>Could not reach Docker</strong>
+        <p class="mono"><%= error.message %></p>
+      </div>
+      <a class="btn" href="/volumes">Retry</a>
+    </div>
+  <% } %>
+
+  <% if (!error && !volumes.length) { %>
+    <div class="empty-state">
+      <svg class="icon empty-icon" aria-hidden="true"><use href="/assets/icons.svg#i-database"></use></svg>
+      <p>No volumes on this host.</p>
+    </div>
+  <% } %>
+
+  <% if (volumes.length) { %>
+    <div class="table-wrap">
+      <table class="resource-table">
+        <caption class="sr-only">Volumes on <%= hostFrame.name %></caption>
+        <thead>
+          <tr>
+            <th scope="col">Name</th>
+            <th scope="col">Driver</th>
+            <th scope="col">Mount point</th>
+            <th scope="col">Scope</th>
+            <th scope="col">Created</th>
+            <th scope="col">Used by</th>
+          </tr>
+        </thead>
+        <tbody>
+          <% volumes.forEach((v) => { %>
+            <tr data-row-link data-href="/volumes/<%= v.name %>" data-name="<%= v.name %>">
+              <th scope="row" class="mono"><a class="row-link" href="/volumes/<%= v.name %>"><%= v.name %></a></th>
+              <td class="mono"><%= v.driver %></td>
+              <td class="mono truncate-mid" title="<%= v.mountpoint %>"><%= v.mountpoint %></td>
+              <td><%= v.scope %></td>
+              <td><%= f.date(v.created) %></td>
+              <td class="numeric"><%= v.usedBy === null ? '—' : v.usedBy %></td>
+            </tr>
+          <% }) %>
+        </tbody>
+      </table>
+    </div>
+  <% } %>
+</section>
+
+<% if (detail) { %>
+  <%- include('../partials/resource-drawer', { kind: detail.kind, item: detail.item }) %>
+<% } %>

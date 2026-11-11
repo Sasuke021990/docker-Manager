@@ -1,0 +1,149 @@
+<%# Detail drawer C-14: header 72 px, tabs, Overview/Config, note editor. %>
+<%
+  const tab = (typeof tabName !== 'undefined' && tabName === 'config') ? 'config' : 'overview';
+  const d = detail;
+  const composeSub = d.compose ? (d.compose.project + '/' + (d.compose.service || '?')) : null;
+  const sources = (d.description && d.description.sources) || [];
+%>
+<aside class="drawer-shell is-open" id="drawer" data-drawer>
+  <div class="drawer-scrim" data-drawer-close></div>
+  <div class="drawer-panel" role="complementary" aria-labelledby="drawer-title">
+    <header class="drawer-head">
+      <div class="drawer-head-text">
+        <h2 id="drawer-title"><%= d.name %></h2>
+        <p class="drawer-sub">
+          <span class="mono"><%= d.image %></span><% if (composeSub) { %> · <span class="mono"><%= composeSub %></span><% } %> · <span class="numeric"><%= f.upExit(d) %></span>
+        </p>
+      </div>
+      <div class="drawer-head-right">
+        <%- include('state-badge', { state: d.state, health: d.health, status: d.status }) %>
+        <a class="icon-btn drawer-close" href="/containers" data-drawer-close aria-label="Close details">
+          <svg class="icon" aria-hidden="true"><use href="/assets/icons.svg#i-close"></use></svg>
+        </a>
+      </div>
+    </header>
+
+    <div class="drawer-tabs">
+      <a class="drawer-tab<%= tab === 'overview' ? ' is-active' : '' %>" href="?tab=overview" data-drawer-tab="overview" aria-selected="<%= tab === 'overview' %>">Overview</a>
+      <a class="drawer-tab<%= tab === 'config' ? ' is-active' : '' %>" href="?tab=config" data-drawer-tab="config" aria-selected="<%= tab === 'config' %>">Config</a>
+    </div>
+
+    <div class="drawer-body">
+      <div data-tab-panel="overview"<%= tab === 'overview' ? '' : ' hidden' %>>
+        <section class="drawer-block">
+          <h3 class="block-title">Description</h3>
+          <p class="desc-primary" data-note-text><%= d.description.primary || '—' %></p>
+          <% if (sources.length) { %>
+            <p class="desc-source">Source: <%= sources.map((s) => s.label).join(' · ') %></p>
+          <% } %>
+          <% if (d.note.status === 'foreign') { %>
+            <p class="desc-warning">
+              <svg class="icon" aria-hidden="true"><use href="/assets/icons.svg#i-alert-triangle"></use></svg>
+              A note with this name belongs to a different container. Editing replaces it.
+            </p>
+          <% } %>
+          <div data-note-view>
+            <button class="text-btn" type="button" data-note-edit>Edit note</button>
+          </div>
+          <div class="note-editor" data-note-editor hidden>
+            <label class="sr-only" for="note-input">Operator note</label>
+            <textarea id="note-input" class="input textarea" rows="3" maxlength="2000" data-note-input><%= d.note.note || '' %></textarea>
+            <div class="note-editor-foot">
+              <span class="note-counter" data-note-counter>0 / 2000</span>
+              <span class="note-help">Clear the note to use the image and Compose description.</span>
+              <span class="note-actions">
+                <button class="btn btn-primary" type="button" data-note-save data-container-id="<%= d.id %>">Save</button>
+                <button class="btn" type="button" data-note-cancel>Cancel</button>
+              </span>
+            </div>
+          </div>
+        </section>
+
+        <section class="drawer-block">
+          <h3 class="block-title">Ports</h3>
+          <ul class="kv-list">
+            <% if (!d.ports.length) { %><li class="kv-value">—</li><% } %>
+            <% d.ports.forEach((p) => { %>
+              <li class="kv-value mono"><% if (p.hostPort) { %><%= (p.hostIp && p.hostIp.includes(':')) ? '[' + p.hostIp + ']' : (p.hostIp || '0.0.0.0') %>:<%= p.hostPort %>→<%= p.containerPort %>/<%= p.proto %><% } else { %><%= p.containerPort %>/<%= p.proto %><% } %></li>
+            <% }) %>
+          </ul>
+        </section>
+
+        <section class="drawer-block">
+          <h3 class="block-title">Networks</h3>
+          <ul class="kv-list">
+            <% if (!d.networks.length) { %><li class="kv-value">—</li><% } %>
+            <% d.networks.forEach((n) => { %>
+              <li class="kv-value"><%= n.name %><% if (n.ip) { %> <span class="mono"><%= n.ip %></span><% } %></li>
+            <% }) %>
+          </ul>
+        </section>
+
+        <section class="drawer-block">
+          <h3 class="block-title">Mounts</h3>
+          <ul class="kv-list">
+            <% if (!d.mounts.length) { %><li class="kv-value">—</li><% } %>
+            <% d.mounts.forEach((m) => { %>
+              <li class="kv-value mono"><%= m.source %> → <%= m.destination %> (<%= m.readOnly ? 'ro' : 'rw' %>)</li>
+            <% }) %>
+          </ul>
+        </section>
+
+        <section class="drawer-block">
+          <h3 class="block-title">Env names</h3>
+          <p class="kv-value mono"><%= d.envNames.length ? d.envNames.join(' · ') : '—' %></p>
+          <p class="block-hint">Values are never displayed.</p>
+        </section>
+
+        <section class="drawer-block">
+          <h3 class="block-title">Runtime</h3>
+          <p class="kv-value">
+            Restart <span class="mono"><%= d.restartPolicy.name %></span> · <span class="numeric"><%= d.restarts === null ? '—' : d.restarts %></span> restarts
+            <% if (d.exitCode !== null && d.exitCode !== undefined) { %> · <span class="numeric">exit <%= d.exitCode %></span><% } %>
+          </p>
+          <p class="kv-value">Image <span class="mono"><%= d.imageTag || d.image %></span></p>
+          <p class="kv-value">Created <%= f.dateTime(d.created) %></p>
+        </section>
+      </div>
+
+      <div data-tab-panel="config"<%= tab === 'config' ? '' : ' hidden' %>>
+        <section class="drawer-block">
+          <h3 class="block-title">Config</h3>
+          <ul class="kv-list">
+            <li class="kv-row"><span class="kv-key">Command</span><span class="kv-value mono"><%= d.command ? f.cmd(d.command) : '—' %></span></li>
+            <li class="kv-row"><span class="kv-key">Entrypoint</span><span class="kv-value mono"><%= d.entrypoint ? f.cmd(d.entrypoint) : '—' %></span></li>
+            <li class="kv-row"><span class="kv-key">Working dir</span><span class="kv-value mono"><%= d.workingDir || '—' %></span></li>
+            <li class="kv-row"><span class="kv-key">User</span><span class="kv-value mono"><%= d.user || '—' %></span></li>
+            <li class="kv-row"><span class="kv-key">Exposed ports</span><span class="kv-value mono"><%= d.exposedPorts.length ? d.exposedPorts.join(' · ') : '—' %></span></li>
+            <li class="kv-row"><span class="kv-key">Image digest</span><span class="kv-value mono copy-field"><%= d.digest || '—' %>
+              <% if (d.digest) { %><button class="icon-btn copy-btn" type="button" data-copy="<%= d.digest %>" aria-label="Copy image digest"><svg class="icon" aria-hidden="true"><use href="/assets/icons.svg#i-copy"></use></svg></button><% } %>
+            </span></li>
+            <li class="kv-row"><span class="kv-key">Restart policy</span><span class="kv-value mono"><%= d.restartPolicy.name %><% if (d.restartPolicy.maximumRetryCount) { %> (<%= d.restartPolicy.maximumRetryCount %>)<% } %></span></li>
+            <li class="kv-row"><span class="kv-key">Created</span><span class="kv-value"><%= f.dateTime(d.created) %></span></li>
+          </ul>
+        </section>
+        <section class="drawer-block">
+          <h3 class="block-title">Labels</h3>
+          <ul class="kv-list mono">
+            <% const labelKeys = Object.keys(d.labels).sort(); %>
+            <% if (!labelKeys.length) { %><li class="kv-value">—</li><% } %>
+            <% labelKeys.forEach((k) => { %>
+              <li class="kv-value"><%= k %>=<%= d.labels[k] %></li>
+            <% }) %>
+          </ul>
+        </section>
+      </div>
+    </div>
+
+    <% if (d.self) { %>
+      <footer class="drawer-foot self-notice">
+        <p>
+          <svg class="icon" aria-hidden="true"><use href="/assets/icons.svg#i-info"></use></svg>
+          This is Docker Manager’s own container. Start, stop, kill, pause and remove are not offered
+          here so the app cannot take itself down. Unpause stays available to recover a paused self;
+          manage it from the host otherwise.
+        </p>
+      </footer>
+    <% } %>
+  </div>
+</aside>

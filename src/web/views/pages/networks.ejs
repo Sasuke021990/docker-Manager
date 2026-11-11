@@ -1,0 +1,64 @@
+<div class="page-head">
+  <div>
+    <h1>Networks</h1>
+    <p class="page-sub"><%= networks.length %> networks</p>
+  </div>
+</div>
+
+<section class="page-body">
+  <% if (error) { %>
+    <div class="error-banner" role="alert">
+      <div class="error-banner-text">
+        <strong>Could not reach Docker</strong>
+        <p class="mono"><%= error.message %></p>
+      </div>
+      <a class="btn" href="/networks">Retry</a>
+    </div>
+  <% } %>
+
+  <% if (!error && !networks.length) { %>
+    <div class="empty-state">
+      <svg class="icon empty-icon" aria-hidden="true"><use href="/assets/icons.svg#i-network"></use></svg>
+      <p>No networks on this host.</p>
+    </div>
+  <% } %>
+
+  <% if (networks.length) { %>
+    <div class="table-wrap">
+      <table class="resource-table">
+        <caption class="sr-only">Networks on <%= hostFrame.name %></caption>
+        <thead>
+          <tr>
+            <th scope="col">Name</th>
+            <th scope="col">Driver</th>
+            <th scope="col">Scope</th>
+            <th scope="col">IPAM subnet</th>
+            <th scope="col">Containers</th>
+          </tr>
+        </thead>
+        <tbody>
+          <% networks.forEach((n) => { %>
+            <tr data-row-link data-href="/networks/<%= n.id %>" data-name="<%= n.name %>">
+              <th scope="row" class="mono"><a class="row-link" href="/networks/<%= n.id %>"><%= n.name %></a></th>
+              <td class="mono"><%= n.driver %></td>
+              <td><%= n.scope %></td>
+              <td class="mono"><%= n.subnet || '—' %></td>
+              <td>
+                <% if (!n.containers.length) { %>—<% } else { %>
+                  <% n.containers.slice(0, 4).forEach((c) => { %>
+                    <a class="row-link" href="/containers/<%= c.id %>"><%= c.name %></a><% if (c !== n.containers[Math.min(3, n.containers.length - 1)]) { %>, <% } %>
+                  <% }) %>
+                  <% if (n.containers.length > 4) { %><span class="port-more" title="<%= n.containers.slice(4).map((c) => c.name).join(', ') %>">+<%= n.containers.length - 4 %></span><% } %>
+                <% } %>
+              </td>
+            </tr>
+          <% }) %>
+        </tbody>
+      </table>
+    </div>
+  <% } %>
+</section>
+
+<% if (detail) { %>
+  <%- include('../partials/resource-drawer', { kind: detail.kind, item: detail.item }) %>
+<% } %>
