@@ -6,6 +6,7 @@
   <title><%= (typeof title !== 'undefined' && title) ? title + ' · Docker Manager' : 'Docker Manager' %></title>
   <link rel="stylesheet" href="/assets/app.css">
   <meta name="csrf-token" content="<%= csrfToken %>">
+  <meta name="stop-timeout" content="<%= settings.stopTimeoutSeconds %>">
   <script src="/assets/app.js" defer></script>
 </head>
 <body>
@@ -32,6 +33,9 @@
           <span class="conn-dot" aria-hidden="true"></span>
           <span class="conn-text" aria-live="polite"><%= hostFrame.state === 'reachable' ? 'Live' : 'Offline' %></span>
         </span>
+        <button class="icon-btn" type="button" data-activity-open aria-label="Activity, last 100 actions">
+          <svg class="icon" aria-hidden="true"><use href="/assets/icons.svg#i-bell"></use></svg>
+        </button>
         <button class="icon-btn" id="theme-toggle" type="button" aria-pressed="<%= theme === 'dark' ? 'true' : 'false' %>" aria-label="Switch to dark theme">
           <svg class="icon" aria-hidden="true"><use href="/assets/icons.svg#i-<%= theme === 'dark' ? 'sun' : 'moon' %>"></use></svg>
         </button>
@@ -43,5 +47,65 @@
   </main>
   <footer class="app-foot">Docker Manager <%= appVersion %> · <%= hostFrame.apiVersion ? 'API ' + hostFrame.apiVersion + ' · ' : '' %>private network, no authentication</footer>
   <div class="toast-stack" id="toasts"></div>
+
+  <%# Shared row menu (C-13): one element, repositioned per trigger by app.js.
+      Items are enabled/hidden per container state and self-guard. %>
+  <div class="row-menu" role="menu" aria-label="Container actions" hidden data-row-menu>
+    <a class="row-menu-item" role="menuitem" href="#" data-menu-details>Open details</a>
+    <button class="row-menu-item" role="menuitem" type="button" data-act="start">Start</button>
+    <button class="row-menu-item" role="menuitem" type="button" data-act="restart">Restart</button>
+    <button class="row-menu-item" role="menuitem" type="button" data-act="pause">Pause</button>
+    <button class="row-menu-item" role="menuitem" type="button" data-act="unpause">Unpause</button>
+    <div class="row-menu-divider" role="separator"></div>
+    <button class="row-menu-item row-menu-item--danger" role="menuitem" type="button" data-act="stop" data-confirm="stop">Stop…</button>
+    <button class="row-menu-item row-menu-item--danger" role="menuitem" type="button" data-act="kill" data-confirm="kill">Kill…</button>
+    <button class="row-menu-item row-menu-item--danger" role="menuitem" type="button" data-act="rm" data-confirm="rm">Remove…</button>
+    <button class="row-menu-item row-menu-cancel" type="button" data-menu-cancel>Cancel</button>
+  </div>
+
+  <%# Destructive-action dialog (FR-026, design §7.6): copy filled per verb
+      by app.js. Cancel is focused on open; the request sends only on the
+      confirm button. %>
+  <div class="modal-backdrop" hidden data-confirm-backdrop>
+    <div class="modal" role="dialog" aria-modal="true" aria-labelledby="confirm-title" aria-describedby="confirm-body" data-confirm-dialog>
+      <h2 class="modal-title" id="confirm-title"></h2>
+      <div class="modal-body" id="confirm-body">
+        <p data-confirm-consequence></p>
+        <p class="modal-kept" data-confirm-kept></p>
+        <div class="choice-group" data-confirm-choice hidden>
+          <label class="choice"><input type="radio" name="rm-mode" value="stop" checked> <span>Stop first, then remove</span></label>
+          <label class="choice"><input type="radio" name="rm-mode" value="force"> <span>Force remove</span></label>
+        </div>
+        <div class="error-block" data-confirm-error hidden>
+          <strong data-confirm-error-action></strong>
+          <p class="mono" data-confirm-error-message></p>
+        </div>
+      </div>
+      <div class="modal-foot">
+        <button class="btn" type="button" data-confirm-cancel>Cancel</button>
+        <button class="btn btn-danger" type="button" data-confirm-ok><span data-confirm-ok-label></span></button>
+      </div>
+    </div>
+  </div>
+
+  <%# Activity drawer (C-07, FR-031): session-only action ring, never history. %>
+  <aside class="drawer-shell" hidden data-activity>
+    <div class="drawer-scrim" data-activity-close></div>
+    <div class="drawer-panel drawer-panel--activity" role="complementary" aria-labelledby="activity-title">
+      <header class="drawer-head">
+        <div class="drawer-head-text"><h2 id="activity-title">Activity · last 100 actions</h2></div>
+        <div class="drawer-head-right">
+          <button class="text-btn" type="button" data-activity-clear>Clear view</button>
+          <button class="icon-btn" type="button" data-activity-close aria-label="Close activity">
+            <svg class="icon" aria-hidden="true"><use href="/assets/icons.svg#i-close"></use></svg>
+          </button>
+        </div>
+      </header>
+      <div class="drawer-body" data-activity-list>
+        <p class="empty-hint">No actions yet in this session. Start, stop or remove a container and it will appear here.</p>
+      </div>
+      <footer class="drawer-foot">Cleared when Docker Manager restarts</footer>
+    </div>
+  </aside>
 </body>
 </html>

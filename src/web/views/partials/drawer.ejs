@@ -144,6 +144,30 @@
           manage it from the host otherwise.
         </p>
       </footer>
+    <% } else { %>
+      <%# Sticky action bar C-14: start always reachable when not running
+          (FR-030); destructive verbs go through the confirm dialog (FR-026). %>
+      <footer class="drawer-foot drawer-actions" data-actions data-id="<%= d.id %>" data-name="<%= d.name %>" data-state="<%= d.state %>">
+        <% const running = d.state === 'running' || d.state === 'restarting'; %>
+        <% const paused = d.state === 'paused'; %>
+        <% if (!running && !paused) { %>
+          <button class="btn btn-primary" type="button" data-act="start">Start</button>
+          <button class="btn" type="button" data-act="restart">Restart</button>
+        <% } else { %>
+          <button class="btn" type="button" data-act="restart">Restart</button>
+          <% if (paused) { %>
+            <button class="btn" type="button" data-act="unpause">Unpause</button>
+          <% } else { %>
+            <button class="btn" type="button" data-act="pause">Pause</button>
+          <% } %>
+        <% } %>
+        <span class="drawer-actions-gap"></span>
+        <% if (running || paused) { %>
+          <button class="btn btn-danger" type="button" data-act="stop" data-confirm="stop">Stop…</button>
+          <button class="btn btn-danger" type="button" data-act="kill" data-confirm="kill">Kill…</button>
+        <% } %>
+        <button class="btn btn-danger" type="button" data-act="rm" data-confirm="rm">Remove…</button>
+      </footer>
     <% } %>
   </div>
 </aside>

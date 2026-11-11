@@ -1,7 +1,8 @@
 <%# Container cards C-10 (< 720 px). The card is the tap target. %>
 <div class="container-cards" data-container-cards>
   <% rows.forEach((row) => { %>
-    <a class="card-<%= row.state %><%= row.self ? ' row-self' : '' %>" href="/containers/<%= row.id %>" data-id="<%= row.id %>" data-name="<%= row.name %>" data-image="<%= row.image %>" data-state="<%= row.state %>" data-row-link>
+    <div class="card-wrap">
+    <a class="card-<%= row.state %><%= row.self ? ' row-self' : '' %>" href="/containers/<%= row.id %>" data-id="<%= row.id %>" data-name="<%= row.name %>" data-image="<%= row.image %>" data-state="<%= row.state %>" data-self="<%= row.self ? '1' : '' %>" data-row-link>
       <div class="card-top">
         <%- include('state-badge', { state: row.state, health: row.health, status: row.status }) %>
       </div>
@@ -17,5 +18,9 @@
         <% if (row.restarts !== null) { %><span>·</span><span class="numeric"><%= row.restarts %> restarts</span><% } %>
       </div>
     </a>
+    <button class="icon-btn row-menu-btn card-menu-btn" type="button" data-menu-trigger data-id="<%= row.id %>" data-name="<%= row.name %>" data-state="<%= row.state %>" data-self="<%= row.self ? '1' : '' %>" aria-haspopup="menu" aria-expanded="false" aria-label="Actions for <%= row.name %>">
+      <svg class="icon" aria-hidden="true"><use href="/assets/icons.svg#i-kebab"></use></svg>
+    </button>
+    </div>
   <% }) %>
 </div>

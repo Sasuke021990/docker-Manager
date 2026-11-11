@@ -15,11 +15,12 @@
         <a class="th-sort" href="?state=<%= query.state %><%= query.q ? '&q=' + encodeURIComponent(query.q) : '' %>&sort=state&dir=<%= query.sort === 'state' && query.dir === 'asc' ? 'desc' : 'asc' %>">Up / Exit</a>
       </th>
       <th scope="col" class="col-restarts">Restarts</th>
+      <th scope="col" class="col-actions"><span class="sr-only">Actions</span></th>
     </tr>
   </thead>
   <tbody>
     <% rows.forEach((row) => { %>
-      <tr class="row-<%= row.state %><%= row.self ? ' row-self' : '' %>" data-id="<%= row.id %>" data-name="<%= row.name %>" data-image="<%= row.image %>" data-state="<%= row.state %>" data-row-link data-href="/containers/<%= row.id %>">
+      <tr class="row-<%= row.state %><%= row.self ? ' row-self' : '' %>" data-id="<%= row.id %>" data-name="<%= row.name %>" data-image="<%= row.image %>" data-state="<%= row.state %>" data-self="<%= row.self ? '1' : '' %>" data-row-link data-href="/containers/<%= row.id %>">
         <td class="col-state">
           <%- include('state-badge', { state: row.state, health: row.health, status: row.status }) %>
         </td>
@@ -39,6 +40,11 @@
           <% } else { %>
             <%= row.restarts %>
           <% } %>
+        </td>
+        <td class="col-actions">
+          <button class="icon-btn row-menu-btn" type="button" data-menu-trigger aria-haspopup="menu" aria-expanded="false" aria-label="Actions for <%= row.name %>">
+            <svg class="icon" aria-hidden="true"><use href="/assets/icons.svg#i-kebab"></use></svg>
+          </button>
         </td>
       </tr>
     <% }) %>

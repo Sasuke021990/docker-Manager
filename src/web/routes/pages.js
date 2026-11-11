@@ -86,7 +86,8 @@ function pagesRouter(ctx) {
       updatedAt: payload.updatedAt,
       hostFrame: payload.host,
       error,
-      detail
+      detail,
+      tabName: req.query.tab === 'config' ? 'config' : 'overview'
     });
   }
 

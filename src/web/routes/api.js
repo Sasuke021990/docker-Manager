@@ -12,7 +12,7 @@ function activeHostId(store) {
 }
 
 function apiRouter(ctx) {
-  const { store, queries, activity } = ctx;
+  const { store, queries, activity, actions } = ctx;
   const router = express.Router();
 
   router.get('/api/containers', async (req, res, next) => {
@@ -132,6 +132,26 @@ function apiRouter(ctx) {
 
   router.get('/api/activity', (req, res) => {
     res.json({ events: activity.list() });
+  });
+
+  // FR-020…FR-029: the only mutating Docker endpoints (design §4.2.2).
+  // CSRF middleware guards them; each call is one explicit operator request.
+  router.post('/api/containers/:id/actions/:verb', async (req, res, next) => {
+    try {
+      res.json(await actions.run(activeHostId(store), req.params.id, req.params.verb));
+    } catch (err) {
+      next(err);
+    }
+  });
+
+  // FR-024, FR-025: remove; ?mode=stop | ?mode=force for a running container.
+  router.delete('/api/containers/:id', async (req, res, next) => {
+    try {
+      const mode = req.query.mode === 'stop' || req.query.mode === 'force' ? req.query.mode : null;
+      res.json(await actions.remove(activeHostId(store), req.params.id, { mode }));
+    } catch (err) {
+      next(err);
+    }
   });
 
   // FR-081: partial settings; unknown keys rejected by the store's allowlist.

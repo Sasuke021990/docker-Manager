@@ -6,10 +6,11 @@ const CAP = 100;
 
 function createActivity(bus) {
   const entries = [];
+  let seq = 0;
   return {
     append(entry) {
       const record = {
-        id: `a${entries.length ? (entries[entries.length - 1].seq ?? 0) + 1 : 1}-${Date.now()}`,
+        id: `a${++seq}-${Date.now()}`,
         at: new Date().toISOString(),
         ...entry
       };
