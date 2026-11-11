@@ -1,0 +1,4 @@
+services:
+  docker-manager:
+    environment:
+      DOCKER_HOST: tcp://socket-proxy:2375

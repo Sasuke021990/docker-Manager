@@ -1,0 +1,55 @@
+name: docker-manager
+
+services:
+  docker-manager:
+    build:
+      context: .
+      args:
+        NODE_IMAGE: ${NODE_IMAGE:-node:26-alpine}
+    image: docker-manager:1.0.0
+    container_name: docker-manager
+    restart: unless-stopped                 # OPS-005
+    ports:
+      - "8080:8080"                         # SEC-001; private network required
+    environment:
+      PORT: "8080"
+      BIND_ADDRESS: "0.0.0.0"
+      CONFIG_PATH: /config/config.json
+      COMPOSE_FOLDER: /compose
+      LOG_TAIL_LINES: "${LOG_TAIL_LINES:-100}"
+      STOP_TIMEOUT_SECONDS: "${STOP_TIMEOUT_SECONDS:-10}"
+      LOG_LEVEL: "${LOG_LEVEL:-info}"
+    group_add:
+      - "${DOCKER_GID:-999}"                # socket group, see README
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - ./config:/config                    # DEV-009, operator-editable
+      - ./compose:/compose:ro
+    read_only: true
+    tmpfs:
+      - /tmp
+    security_opt:
+      - no-new-privileges:true
+    healthcheck:                            # DEV-003
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:8080/healthz"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+
+  socket-proxy:
+    image: tecnativa/docker-socket-proxy:0.5.0
+    profiles: ["proxy"]                     # DEV-006, disabled by default
+    environment:
+      CONTAINERS: "1"
+      IMAGES: "1"
+      VOLUMES: "1"
+      NETWORKS: "1"
+      INFO: "1"
+      VERSION: "1"
+      EVENTS: "1"
+      PING: "1"
+      SYSTEM: "1"                           # required for GET /system/df (FR-055, SEC-012)
+      POST: "1"                             # set "0" for a read-only deployment
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
