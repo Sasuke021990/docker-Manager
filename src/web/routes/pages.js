@@ -18,7 +18,7 @@ function icon(name, cls) {
 }
 
 function pagesRouter(ctx) {
-  const { store, queries, logs, events, compose } = ctx;
+  const { store, queries, logs, events, compose, activity } = ctx;
   const router = express.Router();
 
   function baseLocals(req) {
@@ -209,6 +209,51 @@ function pagesRouter(ctx) {
     } catch (err) {
       next(err);
     }
+  });
+
+  // FR-083/FR-101: configuration summary, theme, hosts, notes maintenance.
+  // Hosts are read-only here — they are edited in config.json (C-24).
+  router.get('/settings', async (req, res, next) => {
+    const cfg = store.get();
+    const hostId = cfg.settings.activeHostId;
+    let staleNotes = [];
+    let liveKnown = false;
+    try {
+      const list = await queries.listContainers(hostId);
+      const live = new Set(list.rows.map((r) => r.name));
+      staleNotes = store.staleNoteNames(live);
+      liveKnown = true;
+    } catch {
+      staleNotes = [];
+      liveKnown = false; // daemon down: cleanup is not offered (nothing is proven stale)
+    }
+    const hosts = cfg.hosts.map((h) => ({
+      ...queries.hostFrame(h.id),
+      access: h.access,
+      managedByEnv: Boolean(h.managedByEnv),
+      endpoint: h.access === 'socket' ? h.socketPath : (h.access === 'tcp' ? h.url : `${h.sshUser}@${h.sshHost}:${h.sshPort ?? 22}`)
+    }));
+    renderPage(req, res, next, 'pages/settings', {
+      title: 'Settings',
+      hostList: hosts,
+      noteCount: Object.keys(cfg.notes).length,
+      staleNotes,
+      liveKnown,
+      configPath: store.path,
+      configState: store.getState(),
+      configWritable: store.isWritable(),
+      hostFrame: queries.hostFrame(hostId)
+    });
+  });
+
+  // FR-031: session activity as a page (no JS needed). The header drawer is
+  // the fast path; this is the readable, linkable one.
+  router.get('/activity', (req, res, next) => {
+    renderPage(req, res, next, 'pages/activity', {
+      title: 'Activity',
+      activityEvents: activity ? activity.list() : [],
+      hostFrame: queries.hostFrame(store.get().settings.activeHostId)
+    });
   });
 
   // FR-070…FR-078: stacks page (compose projects, up/down, output).

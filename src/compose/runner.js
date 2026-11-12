@@ -30,6 +30,7 @@ function splitLines(carry, chunk) {
 
 function createComposeRunner({ env, store: _store, pool, log, probe, activity, bus, resolveProject }) {
   let current = null; // { id, projectId, projectName, action, startedAt, emitter, lines, done, exitCode, error, child }
+  let last = null;   // most recent finished job, kept so late readers (CLI) can poll the result
 
   function busyError() {
     return new ComposeError('COMPOSE_BUSY', `Another compose job is running (${current ? current.projectName : 'unknown'}).`, {
@@ -181,8 +182,10 @@ function createComposeRunner({ env, store: _store, pool, log, probe, activity, b
       job.error = { code: err.code === 'ENOENT' ? 'COMPOSE_UNAVAILABLE' : 'COMPOSE_FAILED', message: msg };
       if (err.code === 'ENOENT') probe.markMissing('The docker binary is not installed in this container.');
       const frame = { t: 'error', code: job.error.code, message: job.error.message };
+      job.result = frame; // retained for late readers (CLI waits on this)
       emitter.emit('done', frame);
       if (activity) activity.append({ action: `compose ${action}`, container: project.name, containerId: projectId, result: 'failed', message: msg });
+      last = job;
       current = null;
     });
 
@@ -196,19 +199,23 @@ function createComposeRunner({ env, store: _store, pool, log, probe, activity, b
       job.exitCode = typeof code === 'number' ? code : (signal ? 128 : 1);
       job.durationMs = Date.now() - job.startedAt;
       if (job.error && job.error.code === 'COMPOSE_TIMEOUT') {
-        emitter.emit('done', { t: 'error', code: 'COMPOSE_TIMEOUT', message: job.error.message });
+        job.result = { t: 'error', code: 'COMPOSE_TIMEOUT', message: job.error.message };
+        emitter.emit('done', job.result);
         if (activity) activity.append({ action: `compose ${action}`, container: project.name, containerId: projectId, result: 'failed', message: job.error.message });
       } else if (job.exitCode !== 0) {
         // A "not a docker command" signature flips probe state (design §3.8.5).
         const allErr = job.lines.filter((l) => l.stream === 'stderr').map((l) => l.line).join('\n');
         if (/is not a docker command/i.test(allErr)) probe.markMissing('The docker compose plugin is not installed in this container.');
-        emitter.emit('done', { t: 'exit', code: job.exitCode, durationMs: job.durationMs });
+        job.result = { t: 'exit', code: job.exitCode, durationMs: job.durationMs };
+        emitter.emit('done', job.result);
         if (activity) activity.append({ action: `compose ${action}`, container: project.name, containerId: projectId, result: 'failed', message: `exit ${job.exitCode}` });
       } else {
-        emitter.emit('done', { t: 'exit', code: 0, durationMs: job.durationMs });
+        job.result = { t: 'exit', code: 0, durationMs: job.durationMs };
+        emitter.emit('done', job.result);
         if (activity) activity.append({ action: `compose ${action}`, container: project.name, containerId: projectId, result: 'ok', state: 'done' });
       }
       log.info('compose.exit', { jobId: id, project: project.name, action, code: job.exitCode, durationMs: job.durationMs });
+      last = job;
       current = null;
       // trigger a resync so stack containers refresh
       if (bus) bus.publish('docker.event', { at: Date.now(), action: 'compose', raw: { Action: `compose-${action}` } });
@@ -219,6 +226,7 @@ function createComposeRunner({ env, store: _store, pool, log, probe, activity, b
 
   function getJob(jobId) {
     if (current && current.id === jobId) return current;
+    if (last && last.id === jobId) return last;
     return null;
   }
 

@@ -26,10 +26,25 @@
         <a class="nav-link<%= currentPath.startsWith('/events') ? ' is-active' : '' %>" href="/events"<%= currentPath.startsWith('/events') ? ' aria-current="page"' : '' %>>Events</a>
       </nav>
       <div class="header-cluster">
-        <span class="host-chip" title="Active host — switch in Settings (config.json)">
-          <span class="dot <%= hostFrame.state === 'reachable' ? 'dot-run' : (hostFrame.state === 'too-old' ? 'dot-dead' : 'dot-stopped') %>"></span>
-          <span class="host-name"><%= hostFrame.name %></span>
-        </span>
+        <%# C-03 host switcher: server renders the active host as a no-JS
+            fallback; app.js enriches the popover with /api/hosts. %>
+        <div class="host-switch" data-host-switch>
+          <button class="host-chip host-chip--btn" type="button" data-host-trigger aria-haspopup="menu" aria-expanded="false" aria-label="Active host: <%= hostFrame.name %>. Switch host">
+            <span class="dot <%= hostFrame.state === 'reachable' ? 'dot-run' : (hostFrame.state === 'too-old' ? 'dot-dead' : 'dot-stopped') %>"></span>
+            <span class="host-name"><%= hostFrame.name %></span>
+            <svg class="icon host-caret" aria-hidden="true"><use href="/assets/icons.svg#i-chevron-down"></use></svg>
+          </button>
+          <div class="host-pop" role="menu" data-host-pop hidden>
+            <div class="host-pop-list" data-host-list>
+              <div class="host-pop-row is-active" role="menuitemradio" aria-checked="true">
+                <span class="dot <%= hostFrame.state === 'reachable' ? 'dot-run' : (hostFrame.state === 'too-old' ? 'dot-dead' : 'dot-stopped') %>"></span>
+                <span class="host-pop-name"><%= hostFrame.name %></span>
+                <span class="host-pop-meta"><%= hostFrame.apiVersion ? 'API ' + hostFrame.apiVersion : hostFrame.state %></span>
+              </div>
+            </div>
+            <a class="host-pop-foot" href="/settings">Edit hosts in config.json</a>
+          </div>
+        </div>
         <% if (hostFrame.apiVersion) { %><span class="api-chip">API <%= hostFrame.apiVersion %></span><% } %>
         <span class="conn-pill conn-<%= hostFrame.state === 'reachable' ? 'live' : 'offline' %>" id="conn-pill">
           <span class="conn-dot" aria-hidden="true"></span>
@@ -39,12 +54,15 @@
           <svg class="icon" aria-hidden="true"><use href="/assets/icons.svg#i-bell"></use></svg>
           <span class="event-badge" data-event-badge hidden>0</span>
         </a>
-        <button class="icon-btn" type="button" data-activity-open aria-label="Activity, last 100 actions">
-          <svg class="icon" aria-hidden="true"><use href="/assets/icons.svg#i-activity"></use></svg>
-        </button>
         <button class="icon-btn" id="theme-toggle" type="button" aria-pressed="<%= theme === 'dark' ? 'true' : 'false' %>" aria-label="Switch to dark theme">
           <svg class="icon" aria-hidden="true"><use href="/assets/icons.svg#i-<%= theme === 'dark' ? 'sun' : 'moon' %>"></use></svg>
         </button>
+        <button class="icon-btn" type="button" data-activity-open aria-label="Activity, last 100 actions">
+          <svg class="icon" aria-hidden="true"><use href="/assets/icons.svg#i-activity"></use></svg>
+        </button>
+        <a class="icon-btn<%= currentPath.startsWith('/settings') ? ' is-active' : '' %>" href="/settings" aria-label="Settings">
+          <svg class="icon" aria-hidden="true"><use href="/assets/icons.svg#i-settings"></use></svg>
+        </a>
       </div>
     </div>
   </header>

@@ -29,6 +29,11 @@
     const mode = btn.getAttribute('data-theme-set');
     localStorage.setItem(THEME_KEY, mode);
     applyTheme(mode);
+    document.querySelectorAll('[data-theme-set]').forEach((b) => {
+      const on = b.getAttribute('data-theme-set') === mode;
+      b.classList.toggle('is-active', on);
+      b.setAttribute('aria-pressed', on ? 'true' : 'false');
+    });
     // Persist to the dm_theme cookie for future page renders.
     const token = document.querySelector('meta[name="csrf-token"]');
     fetch('/api/settings', {
@@ -1478,5 +1483,222 @@
     }
   });
 
+
+
+  // ==================================================================
+  // P5 — host switcher (C-03, FR-086/FR-087), settings (C-24, FR-081/101)
+  // ==================================================================
+
+  const hostSwitch = document.querySelector('[data-host-switch]');
+  if (hostSwitch) {
+    const hostTrigger = hostSwitch.querySelector('[data-host-trigger]');
+    const hostPop = hostSwitch.querySelector('[data-host-pop]');
+    const hostList = hostSwitch.querySelector('[data-host-list]');
+    const hostFoot = hostSwitch.querySelector('.host-pop-foot');
+    let hostsLoaded = false;
+    let hostsBusy = false;
+
+    const HOST_STATE_META = (h) => {
+      if (h.state === 'reachable') return h.apiVersion ? 'API ' + h.apiVersion : 'reachable';
+      if (h.state === 'too-old') return (h.error && h.error.message) || 'API too old — needs 1.40+';
+      if (h.state === 'unreachable' || h.state === 'error') return (h.error && h.error.message) || h.state;
+      return 'connecting…';
+    };
+    const HOST_DOT = (h) => (h.state === 'reachable' ? 'dot-run' : (h.state === 'connecting' ? 'dot-stopped' : 'dot-dead'));
+
+    function closeHostPop() {
+      if (!hostPop) return;
+      hostPop.hidden = true;
+      if (hostTrigger) hostTrigger.setAttribute('aria-expanded', 'false');
+    }
+
+    function renderHosts(hosts) {
+      if (!hostList) return;
+      hostList.textContent = '';
+      for (const h of hosts) {
+        const row = document.createElement('button');
+        row.type = 'button';
+        row.className = 'host-pop-row' + (h.active ? ' is-active' : '');
+        row.setAttribute('role', 'menuitemradio');
+        row.setAttribute('aria-checked', h.active ? 'true' : 'false');
+        row.disabled = Boolean(h.active);
+        const dot = document.createElement('span');
+        dot.className = 'dot ' + HOST_DOT(h);
+        const name = document.createElement('span');
+        name.className = 'host-pop-name';
+        name.textContent = h.name;
+        const meta = document.createElement('span');
+        meta.className = 'host-pop-meta';
+        meta.textContent = HOST_STATE_META(h);
+        row.append(dot, name, meta);
+        row.addEventListener('click', () => activateHost(h));
+        hostList.appendChild(row);
+      }
+      if (hostFoot) {
+        hostFoot.textContent = hosts.length > 1 ? 'Edit hosts in config.json' : 'Add hosts in config.json';
+      }
+    }
+
+    async function loadHosts() {
+      if (hostsLoaded) return;
+      try {
+        const r = await fetch('/api/hosts');
+        if (!r.ok) return;
+        const hosts = await r.json();
+        if (Array.isArray(hosts)) { renderHosts(hosts); hostsLoaded = true; }
+      } catch { /* keep the server-rendered fallback row */ }
+    }
+
+    async function activateHost(h) {
+      if (hostsBusy || h.active) return;
+      hostsBusy = true;
+      closeHostPop();
+      try {
+        const r = await fetch('/api/hosts/' + encodeURIComponent(h.id) + '/activate', {
+          method: 'POST',
+          headers: csrfHeaders({ 'content-type': 'application/json' }),
+          body: '{}'
+        });
+        const data = await r.json().catch(() => ({}));
+        if (!r.ok) {
+          toast((data.error && data.error.message) || 'Could not switch host.', 'error');
+          return;
+        }
+        // Full resync: every page re-fetches for the new host (§3.4.5).
+        window.location.reload();
+      } catch {
+        toast('Could not switch host.', 'error');
+      } finally {
+        hostsBusy = false;
+      }
+    }
+
+    if (hostTrigger && hostPop) {
+      hostTrigger.addEventListener('click', async (e) => {
+        e.stopPropagation();
+        if (!hostPop.hidden) { closeHostPop(); return; }
+        hostPop.hidden = false;
+        hostTrigger.setAttribute('aria-expanded', 'true');
+        await loadHosts();
+        const first = hostList && hostList.querySelector('button:not(:disabled)');
+        if (first) first.focus();
+      });
+      document.addEventListener('click', (e) => {
+        if (!hostSwitch.contains(e.target)) closeHostPop();
+      });
+      document.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape' && hostPop && !hostPop.hidden) {
+          closeHostPop();
+          hostTrigger.focus();
+        }
+      });
+      // Keep the popover in step with the host.health frames.
+      window.addEventListener('dm:host-health', () => { hostsLoaded = false; });
+    }
+  }
+
+  // ----- settings page (C-24, FR-081) -----------------------------------
+  const settingsPage = document.querySelector('.settings-page');
+  if (settingsPage) {
+    const pending = new Map();
+    let saveTimer = null;
+    let saving = false;
+
+    function showSaved(el) {
+      const row = el.closest('.settings-row');
+      if (!row) return;
+      let tick = row.querySelector('.saved-tick');
+      if (!tick) {
+        tick = document.createElement('span');
+        tick.className = 'saved-tick';
+        tick.setAttribute('role', 'status');
+        (el.parentElement || row).appendChild(tick);
+      }
+      tick.textContent = 'Saved';
+      window.clearTimeout(tick._t);
+      tick._t = window.setTimeout(() => { tick.textContent = ''; }, 2500);
+    }
+
+    async function flushSettings() {
+      if (!pending.size || saving) return;
+      const body = {};
+      for (const [k, v] of pending) body[k] = v;
+      pending.clear();
+      saving = true;
+      try {
+        const r = await fetch('/api/settings', {
+          method: 'PATCH',
+          headers: csrfHeaders({ 'content-type': 'application/json' }),
+          body: JSON.stringify(body)
+        });
+        const data = await r.json().catch(() => ({}));
+        if (!r.ok) {
+          toast((data.error && data.error.message) || 'Could not save settings.', 'error');
+          return;
+        }
+        // The server clamps out-of-range values; reflect what was stored.
+        for (const key of Object.keys(body)) {
+          const stored = data.settings ? data.settings[key] : undefined;
+          const el = settingsPage.querySelector('[data-setting="' + key + '"]');
+          if (el && stored !== undefined) {
+            if (el.type === 'checkbox') el.checked = Boolean(stored);
+            else el.value = String(stored);
+            showSaved(el);
+          }
+        }
+      } catch {
+        toast('Could not save settings.', 'error');
+      } finally {
+        saving = false;
+        if (pending.size) flushSettings();
+      }
+    }
+
+    settingsPage.addEventListener('change', (e) => {
+      const el = e.target.closest('[data-setting]');
+      if (!el) return;
+      const key = el.getAttribute('data-setting');
+      const type = el.getAttribute('data-setting-type');
+      let value;
+      if (type === 'bool') value = el.checked;
+      else if (type === 'int') {
+        value = Number.parseInt(el.value, 10);
+        if (!Number.isFinite(value)) return;
+      } else value = el.value;
+      pending.set(key, value);
+      window.clearTimeout(saveTimer);
+      saveTimer = window.setTimeout(flushSettings, 400); // 400 ms debounce (C-24)
+    });
+
+    const pruneBtn = settingsPage.querySelector('[data-notes-prune]');
+    if (pruneBtn) {
+      pruneBtn.addEventListener('click', async () => {
+        let names = [];
+        try { names = JSON.parse(pruneBtn.getAttribute('data-names') || '[]'); } catch { names = []; }
+        if (!names.length) return;
+        const ok = window.confirm('Remove ' + names.length + ' stale note' + (names.length === 1 ? '' : 's') + '?\nThis cannot be undone.');
+        if (!ok) return;
+        pruneBtn.disabled = true;
+        try {
+          const r = await fetch('/api/notes/prune', {
+            method: 'POST',
+            headers: csrfHeaders({ 'content-type': 'application/json' }),
+            body: JSON.stringify({ names })
+          });
+          const data = await r.json().catch(() => ({}));
+          if (!r.ok) {
+            toast((data.error && data.error.message) || 'Could not remove notes.', 'error');
+            pruneBtn.disabled = false;
+            return;
+          }
+          toast('Removed ' + (data.removed || 0) + ' note' + ((data.removed || 0) === 1 ? '' : 's') + '.', 'ok');
+          window.location.reload();
+        } catch {
+          toast('Could not remove notes.', 'error');
+          pruneBtn.disabled = false;
+        }
+      });
+    }
+  }
 
 })();

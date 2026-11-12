@@ -23,7 +23,10 @@ function errorHandler(log) {
   return function errorMiddleware(err, req, res, next) {
     let mapped;
     if (err instanceof DockerError) mapped = err;
-    else if (err.type === 'entity.too.large') mapped = new DockerError('BODY_TOO_LARGE', 'Request body exceeds the 16 KB limit.');
+    else if (err && typeof err.code === 'string' && typeof err.httpStatus === 'number') {
+      // ConfigError and friends carry their own taxonomy code (design §4.1.2).
+      mapped = new DockerError(err.code, err.message);
+    } else if (err.type === 'entity.too.large') mapped = new DockerError('BODY_TOO_LARGE', 'Request body exceeds the 16 KB limit.');
     else if (err.type === 'entity.parse.failed') mapped = new DockerError('BAD_REQUEST', 'Request body is not valid JSON.');
     else mapped = mapDockerError(err);
 

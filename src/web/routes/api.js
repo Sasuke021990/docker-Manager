@@ -12,8 +12,47 @@ function activeHostId(store) {
 }
 
 function apiRouter(ctx) {
-  const { store, queries, activity, actions, events, stats } = ctx;
+  const { store, pool, queries, activity, actions, events, stats } = ctx;
   const router = express.Router();
+
+  // FR-086: one row per configured host with its live connection state.
+  router.get('/api/hosts', (req, res) => {
+    const cfg = store.get();
+    const activeId = cfg.settings.activeHostId;
+    res.json(cfg.hosts.map((h) => {
+      const rt = pool.runtimes.get(h.id);
+      return {
+        id: h.id,
+        name: h.name,
+        access: h.access,
+        state: rt ? rt.state : 'connecting',
+        apiVersion: rt ? rt.apiVersion : null,
+        engineVersion: rt ? rt.engineVersion : null,
+        error: rt && rt.lastError ? rt.lastError : null,
+        active: h.id === activeId,
+        managedByEnv: Boolean(h.managedByEnv)
+      };
+    }));
+  });
+
+  // FR-087: switch the active host. Writing the setting drives pool.syncHosts
+  // (via the store's onChange), which closes the previous host's streams,
+  // opens the new one and broadcasts resync host-changed.
+  router.post('/api/hosts/:id/activate', async (req, res, next) => {
+    try {
+      const id = req.params.id;
+      const cfg = store.get();
+      if (!cfg.hosts.some((h) => h.id === id)) {
+        throw new DockerError('HOST_NOT_FOUND', `No configured host with id ${id}.`, { action: 'activate-host' });
+      }
+      if (cfg.settings.activeHostId !== id) {
+        await store.saveSettings({ activeHostId: id });
+      }
+      res.json({ ok: true, activeHostId: store.get().settings.activeHostId });
+    } catch (err) {
+      next(err);
+    }
+  });
 
   router.get('/api/containers', async (req, res, next) => {
     try {

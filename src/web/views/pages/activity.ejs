@@ -1,0 +1,37 @@
+<div class="page-head">
+  <div>
+    <h1>Activity</h1>
+    <p class="page-sub">Last 100 actions in this session</p>
+  </div>
+  <div class="page-actions">
+    <a class="btn" href="/activity">Refresh</a>
+  </div>
+</div>
+
+<section class="page-body">
+  <% if (!activityEvents.length) { %>
+    <div class="empty-state">
+      <svg class="icon empty-icon" aria-hidden="true"><use href="/assets/icons.svg#i-activity"></use></svg>
+      <p>No actions yet in this session. Start, stop or remove a container and it will appear here.</p>
+    </div>
+  <% } else { %>
+    <div class="activity-feed">
+      <% activityEvents.forEach((ev) => { %>
+        <div class="act-row">
+          <time class="act-time numeric"><%= f.timeOfDay(ev.at) %></time>
+          <span class="act-chip"><%= ev.action %></span>
+          <span class="act-name mono"><%= ev.container || '' %></span>
+          <% if (ev.result === 'ok') { %>
+            <span class="act-result act-ok">✓ ok</span>
+          <% } else { %>
+            <details class="act-detail">
+              <summary class="act-result act-failed">✕ failed</summary>
+              <p class="act-msg mono"><%= ev.message || '' %></p>
+            </details>
+          <% } %>
+        </div>
+      <% }) %>
+    </div>
+    <p class="list-foot">Cleared when Docker Manager restarts</p>
+  <% } %>
+</section>

@@ -1,0 +1,144 @@
+<%
+  const s = settings;
+  const themeVal = ['light','dark','system'].includes(s.theme) ? s.theme : 'system';
+%>
+<div class="page-head">
+  <div>
+    <h1>Settings</h1>
+    <p class="page-sub">Saved to <span class="mono"><%= configPath %></span><% if (!configWritable) { %> · read-only<% } %></p>
+  </div>
+</div>
+
+<section class="page-body settings-page">
+  <% if (!configWritable) { %>
+    <div class="error-banner" role="alert">
+      <div class="error-banner-text">
+        <strong>Configuration is read-only</strong>
+        <p>Changes cannot be saved from this container.</p>
+      </div>
+    </div>
+  <% } %>
+
+  <section class="settings-section">
+    <h2 class="settings-title">Appearance</h2>
+    <div class="settings-row">
+      <div>
+        <label class="settings-label" id="theme-label">Theme</label>
+        <p class="settings-hint">Applies to every page and is stored in the configuration file.</p>
+      </div>
+      <div class="seg" role="group" aria-labelledby="theme-label">
+        <button class="seg-btn<%= themeVal === 'light' ? ' is-active' : '' %>" type="button" data-theme-set="light" aria-pressed="<%= themeVal === 'light' %>">Light</button>
+        <button class="seg-btn<%= themeVal === 'dark' ? ' is-active' : '' %>" type="button" data-theme-set="dark" aria-pressed="<%= themeVal === 'dark' %>">Dark</button>
+        <button class="seg-btn<%= themeVal === 'system' ? ' is-active' : '' %>" type="button" data-theme-set="system" aria-pressed="<%= themeVal === 'system' %>">System</button>
+      </div>
+    </div>
+  </section>
+
+  <section class="settings-section">
+    <h2 class="settings-title">Logs</h2>
+    <div class="settings-row">
+      <div>
+        <label class="settings-label" for="set-log-tail">Tail lines</label>
+        <p class="settings-hint">Lines shown when a log view opens (1–10,000).</p>
+      </div>
+      <input class="input settings-input" id="set-log-tail" type="number" min="1" max="10000" value="<%= s.logTailLines %>" data-setting="logTailLines" data-setting-type="int" <%= configWritable ? '' : 'disabled' %>>
+    </div>
+    <div class="settings-row">
+      <div>
+        <label class="settings-label" for="set-log-buffer">Buffer lines</label>
+        <p class="settings-hint">Lines kept in memory per live view (100–50,000).</p>
+      </div>
+      <input class="input settings-input" id="set-log-buffer" type="number" min="100" max="50000" value="<%= s.maxBufferLines %>" data-setting="maxBufferLines" data-setting-type="int" <%= configWritable ? '' : 'disabled' %>>
+    </div>
+    <div class="settings-row">
+      <div>
+        <label class="settings-label" for="set-log-ts">Show timestamps</label>
+        <p class="settings-hint">Display only — exports are always timestamped.</p>
+      </div>
+      <label class="switch">
+        <input id="set-log-ts" type="checkbox" <%= s.showTimestamps ? 'checked' : '' %> data-setting="showTimestamps" data-setting-type="bool" <%= configWritable ? '' : 'disabled' %>>
+        <span>Enabled</span>
+      </label>
+    </div>
+  </section>
+
+  <section class="settings-section">
+    <h2 class="settings-title">Actions &amp; stats</h2>
+    <div class="settings-row">
+      <div>
+        <label class="settings-label" for="set-stop-timeout">Stop timeout</label>
+        <p class="settings-hint">Seconds before SIGTERM becomes SIGKILL (0–300).</p>
+      </div>
+      <input class="input settings-input" id="set-stop-timeout" type="number" min="0" max="300" value="<%= s.stopTimeoutSeconds %>" data-setting="stopTimeoutSeconds" data-setting-type="int" <%= configWritable ? '' : 'disabled' %>>
+    </div>
+    <div class="settings-row">
+      <div>
+        <label class="settings-label" for="set-stats-interval">Stats interval</label>
+        <p class="settings-hint">How often a live stats panel samples (500–10,000 ms).</p>
+      </div>
+      <input class="input settings-input" id="set-stats-interval" type="number" min="500" max="10000" step="100" value="<%= s.statsIntervalMs %>" data-setting="statsIntervalMs" data-setting-type="int" <%= configWritable ? '' : 'disabled' %>>
+    </div>
+  </section>
+
+  <section class="settings-section">
+    <h2 class="settings-title">Hosts</h2>
+    <p class="settings-hint">Hosts are defined in the configuration file — add, edit or remove them there.</p>
+    <div class="host-list">
+      <% hostList.forEach((h) => { %>
+        <div class="host-list-row<%= h.id === hostFrame.id ? ' is-active' : '' %>">
+          <span class="dot <%= h.state === 'reachable' ? 'dot-run' : (h.state === 'too-old' ? 'dot-dead' : (h.state === 'error' ? 'dot-dead' : 'dot-stopped')) %>"></span>
+          <span class="host-list-name">
+            <%= h.name %>
+            <% if (h.id === hostFrame.id) { %><span class="chip chip-accent">active</span><% } %>
+            <% if (h.managedByEnv) { %><span class="chip">from DOCKER_HOST</span><% } %>
+          </span>
+          <span class="host-list-meta mono"><%= h.endpoint %></span>
+          <span class="host-list-state">
+            <% if (h.state === 'reachable') { %>API <%= h.apiVersion %> · <%= h.engineVersion %><% } %>
+            <% if (h.state === 'too-old') { %>API too old — needs 1.40+<% } %>
+            <% if (h.state === 'unreachable') { %><%= h.error ? h.error.message : 'unreachable' %><% } %>
+            <% if (h.state === 'error') { %><%= h.error ? h.error.message : 'error' %><% } %>
+            <% if (h.state === 'connecting') { %>connecting…<% } %>
+          </span>
+        </div>
+      <% }) %>
+    </div>
+    <p class="settings-hint">SSH hosts reuse your mounted <span class="mono">ssh-agent</span> socket. Private keys and passphrases are never stored in the configuration file.</p>
+  </section>
+
+  <section class="settings-section">
+    <h2 class="settings-title">Notes</h2>
+    <div class="settings-row">
+      <div>
+        <p class="settings-label"><%= noteCount %> note<%= noteCount === 1 ? '' : 's' %> stored</p>
+        <p class="settings-hint">
+          <% if (!liveKnown) { %>
+            Could not read the container list, so stale notes cannot be determined.
+          <% } else if (staleNotes.length) { %>
+            <%= staleNotes.length %> note<%= staleNotes.length === 1 ? '' : 's' %> belong<%= staleNotes.length === 1 ? 's' : '' %> to containers that no longer exist.
+          <% } else { %>
+            Every note belongs to a container that still exists.
+          <% } %>
+        </p>
+      </div>
+      <% if (liveKnown && staleNotes.length && configWritable) { %>
+        <button class="btn btn-danger" type="button" data-notes-prune data-names="<%= JSON.stringify(staleNotes).replace(/"/g, '&quot;') %>">Remove stale notes…</button>
+      <% } %>
+    </div>
+  </section>
+
+  <section class="settings-section">
+    <h2 class="settings-title">About</h2>
+    <ul class="kv-list">
+      <li class="kv-row"><span class="kv-key">Version</span><span class="kv-value mono"><%= appVersion %></span></li>
+      <li class="kv-row"><span class="kv-key">API</span><span class="kv-value mono"><%= hostFrame.apiVersion || '—' %></span></li>
+      <li class="kv-row"><span class="kv-key">Active host</span><span class="kv-value"><%= hostFrame.name %></span></li>
+      <li class="kv-row"><span class="kv-key">Config</span><span class="kv-value mono"><%= configPath %> (<%= configState %>)</span></li>
+      <li class="kv-row"><span class="kv-key">Activity</span><span class="kv-value"><a href="/activity">Last 100 actions</a></span></li>
+    </ul>
+    <p class="settings-hint settings-warn">
+      <svg class="icon" aria-hidden="true"><use href="/assets/icons.svg#i-alert-triangle"></use></svg>
+      Mounting the Docker socket gives this application the same power as root on the host. Bind it to a private network and do not expose this port publicly.
+    </p>
+  </section>
+</section>

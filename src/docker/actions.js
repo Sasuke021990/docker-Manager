@@ -38,7 +38,16 @@ function createActions({ env, pool, store, queries, activity, log }) {
     return err instanceof DockerError ? err : mapDockerError(err, ctx);
   }
 
-  async function run(hostId, containerId, verb) {
+  // Optional per-request overrides from the CLI's --timeout/--signal
+  // (design §3.10.1). The web routes never pass them, so the configured
+  // stopTimeoutSeconds stays the only source of the web timeout.
+  function timeoutOf(opts) {
+    return Number.isInteger(opts.timeoutSeconds)
+      ? Math.min(300, Math.max(0, opts.timeoutSeconds))
+      : stopTimeout();
+  }
+
+  async function run(hostId, containerId, verb, opts = {}) {
     if (!VERBS.has(verb)) {
       throw new DockerError('BAD_REQUEST', `Unknown action "${verb}". Allowed: ${[...VERBS].join(', ')}.`, { action: verb, containerId });
     }
@@ -53,9 +62,9 @@ function createActions({ env, pool, store, queries, activity, log }) {
           const c = client.getContainer(inspect.Id);
           switch (verb) {
             case 'start': return c.start();
-            case 'stop': return c.stop({ t: stopTimeout() }); // SIGTERM → SIGKILL
-            case 'restart': return c.restart({ t: stopTimeout() });
-            case 'kill': return c.kill(); // SIGKILL, no timeout
+            case 'stop': return c.stop({ t: timeoutOf(opts) }); // SIGTERM → SIGKILL
+            case 'restart': return c.restart({ t: timeoutOf(opts) });
+            case 'kill': return opts.signal ? c.kill({ signal: opts.signal }) : c.kill(); // default SIGKILL
             case 'pause': return c.pause();
             case 'unpause': return c.unpause();
             default: return null;

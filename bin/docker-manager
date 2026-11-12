@@ -1,0 +1,10 @@
+#!/usr/bin/env node
+'use strict';
+
+// Thin shim (design §3.10): all behaviour lives in src/cli.js, which runs
+// in-process against the same core layer as the web server.
+
+require('../src/cli').main().catch((err) => {
+  process.stderr.write(`docker-manager: ${(err && err.message) || err}\n`);
+  process.exitCode = 1;
+});
