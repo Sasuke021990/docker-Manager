@@ -1,6 +1,7 @@
 <%# Detail drawer C-14: header 72 px, tabs, Overview/Config, note editor. %>
 <%
-  const tab = (typeof tabName !== 'undefined' && tabName === 'config') ? 'config' : 'overview';
+  const allowedTabs = new Set(['overview', 'stats', 'config']);
+  const tab = (typeof tabName !== 'undefined' && allowedTabs.has(tabName)) ? tabName : 'overview';
   const d = detail;
   const composeSub = d.compose ? (d.compose.project + '/' + (d.compose.service || '?')) : null;
   const sources = (d.description && d.description.sources) || [];
@@ -26,6 +27,7 @@
     <div class="drawer-tabs">
       <a class="drawer-tab<%= tab === 'overview' ? ' is-active' : '' %>" href="?tab=overview" data-drawer-tab="overview" aria-selected="<%= tab === 'overview' %>">Overview</a>
       <a class="drawer-tab" href="/containers/<%= d.id %>/logs">Logs</a>
+      <a class="drawer-tab<%= tab === 'stats' ? ' is-active' : '' %>" href="?tab=stats" data-drawer-tab="stats" aria-selected="<%= tab === 'stats' %>">Stats</a>
       <a class="drawer-tab<%= tab === 'config' ? ' is-active' : '' %>" href="?tab=config" data-drawer-tab="config" aria-selected="<%= tab === 'config' %>">Config</a>
     </div>
 
@@ -104,6 +106,24 @@
           </p>
           <p class="kv-value">Image <span class="mono"><%= d.imageTag || d.image %></span></p>
           <p class="kv-value">Created <%= f.dateTime(d.created) %></p>
+        </section>
+      </div>
+
+      <div data-tab-panel="stats"<%= tab === 'stats' ? '' : ' hidden' %>>
+        <section class="drawer-block stats-panel" data-stats-panel data-container-id="<%= d.id %>" data-container-state="<%= d.state %>">
+          <h3 class="block-title">Live stats</h3>
+          <p class="stats-updated" data-stats-updated>updated —</p>
+          <div class="stats-grid">
+            <div class="stats-row"><span class="kv-key">CPU</span><span class="kv-value" data-stats-cpu>—</span></div>
+            <div class="stats-meter"><span class="stats-bar" data-stats-cpu-bar></span></div>
+            <div class="stats-row"><span class="kv-key">Memory</span><span class="kv-value" data-stats-mem>—</span></div>
+            <div class="stats-meter"><span class="stats-bar" data-stats-mem-bar></span></div>
+            <div class="stats-row"><span class="kv-key">Network</span><span class="kv-value mono" data-stats-net>↓ —  ↑ —</span></div>
+            <div class="stats-row"><span class="kv-key">Block I/O</span><span class="kv-value mono" data-stats-block>R —  W —</span></div>
+            <div class="stats-row"><span class="kv-key">PIDs</span><span class="kv-value" data-stats-pids>—</span></div>
+          </div>
+          <p class="block-hint" data-stats-state><% if (d.state !== 'running') { %>Stopped — stats are not sampled<% } else { %>Connecting…<% } %></p>
+          <button class="text-btn" type="button" data-stats-retry hidden>Retry</button>
         </section>
       </div>
 

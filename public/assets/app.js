@@ -1256,4 +1256,227 @@
     if (filterEl) filterEl.addEventListener('input', () => { clearTimeout(filterTimer); filterTimer = setTimeout(applyFilter, 120); });
     if (onlyCb) onlyCb.addEventListener('change', applyFilter);
   }
+
+  // ----- stats panel (FR-050/FR-051, P4) ---------------------------------
+  function fmtBytes(n) {
+    if (n == null || !Number.isFinite(n)) return '—';
+    const units = ['B', 'KB', 'MB', 'GB', 'TB'];
+    let v = n; let i = 0;
+    while (v >= 1024 && i < units.length - 1) { v /= 1024; i += 1; }
+    const d = i === 0 ? 0 : (v >= 100 ? 0 : 1);
+    return v.toFixed(d) + ' ' + units[i];
+  }
+  function fmtPct(n) {
+    if (n == null || !Number.isFinite(n)) return '—';
+    return n.toFixed(1) + ' %';
+  }
+
+  let statsEs = null;
+  function closeStats() {
+    if (statsEs) { try { statsEs.close(); } catch { /* ignore */ } statsEs = null; }
+  }
+
+  function initStatsPanel() {
+    closeStats();
+    const panel = document.querySelector('[data-stats-panel]');
+    if (!panel) return;
+    const cid = panel.getAttribute('data-container-id');
+    const cstate = panel.getAttribute('data-container-state');
+    const cpuEl = panel.querySelector('[data-stats-cpu]');
+    const cpuBar = panel.querySelector('[data-stats-cpu-bar]');
+    const memEl = panel.querySelector('[data-stats-mem]');
+    const memBar = panel.querySelector('[data-stats-mem-bar]');
+    const netEl = panel.querySelector('[data-stats-net]');
+    const blockEl = panel.querySelector('[data-stats-block]');
+    const pidsEl = panel.querySelector('[data-stats-pids]');
+    const updEl = panel.querySelector('[data-stats-updated]');
+    const stateEl = panel.querySelector('[data-stats-state]');
+    const retryBtn = panel.querySelector('[data-stats-retry]');
+
+    function setState(msg, showRetry) {
+      if (stateEl) stateEl.textContent = msg || '';
+      if (retryBtn) retryBtn.hidden = !showRetry;
+    }
+    function renderSample(d) {
+      if (cpuEl) cpuEl.textContent = fmtPct(d.cpuPct);
+      if (cpuBar) {
+        const pct = d.cpuPct != null ? Math.min(100, Math.max(0, d.cpuPct)) : 0;
+        cpuBar.style.width = (d.cpuPct == null ? 0 : pct) + '%';
+        cpuBar.className = 'stats-bar' + (pct >= 90 ? ' is-hot' : pct >= 70 ? ' is-warn' : '');
+      }
+      if (memEl) {
+        if (d.memUsed == null) memEl.textContent = '—';
+        else memEl.textContent = fmtBytes(d.memUsed) + (d.memLimit ? ' / ' + fmtBytes(d.memLimit) : ' / —');
+      }
+      if (memBar) {
+        const pct = (d.memUsed != null && d.memLimit) ? Math.min(100, (d.memUsed / d.memLimit) * 100) : 0;
+        memBar.style.width = (d.memUsed != null && d.memLimit ? pct : 0) + '%';
+        memBar.className = 'stats-bar' + (pct >= 90 ? ' is-hot' : pct >= 70 ? ' is-warn' : '');
+      }
+      if (netEl) netEl.textContent = '↓ ' + fmtBytes(d.net && d.net.rx) + '  ↑ ' + fmtBytes(d.net && d.net.tx);
+      if (blockEl) blockEl.textContent = 'R ' + fmtBytes(d.block && d.block.read) + '  W ' + fmtBytes(d.block && d.block.write);
+      if (pidsEl) pidsEl.textContent = d.pids == null ? '—' : String(d.pids);
+      if (updEl) updEl.textContent = 'updated just now';
+      setState('', false);
+    }
+
+    function connect() {
+      if (!cid) return;
+      if (cstate !== 'running') { setState('Stopped — stats are not sampled', false); return; }
+      closeStats();
+      setState('Connecting…', false);
+      try {
+        statsEs = new EventSource('/api/containers/' + encodeURIComponent(cid) + '/stats/stream');
+      } catch {
+        setState('Stats paused · Retry', true);
+        return;
+      }
+      statsEs.addEventListener('sample', (e) => {
+        try { renderSample(JSON.parse(e.data)); } catch { /* ignore */ }
+      });
+      statsEs.addEventListener('state', (e) => {
+        try {
+          const d = JSON.parse(e.data);
+          setState(d.message || 'Stopped — stats are not sampled', false);
+        } catch { /* ignore */ setState('Stopped — stats are not sampled', false); }
+        closeStats();
+      });
+      statsEs.addEventListener('error', () => {
+        // design: client closes on error and shows retry (no silent reconnect)
+        if (statsEs) { try { statsEs.close(); } catch { /* ignore */ } statsEs = null; }
+        setState('Stats paused · Retry', true);
+      });
+    }
+    if (retryBtn) retryBtn.addEventListener('click', connect);
+    // Start only if stats panel is visible now
+    if (!panel.closest('[hidden]')) connect();
+  }
+
+  document.addEventListener('click', (e) => {
+    const tab = e.target.closest('[data-drawer-tab="stats"]');
+    if (tab) {
+      // allow navigation/default to update URL, but init after panel shown
+      setTimeout(initStatsPanel, 0);
+    }
+  });
+  // Also init on load if already on stats tab
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', initStatsPanel);
+  else initStatsPanel();
+  window.addEventListener('beforeunload', closeStats);
+
+  // ----- compose (FR-070…FR-078, P4) -------------------------------------
+  async function startCompose(projectId, action, confirmMixed) {
+    const res = await fetch('/api/compose/run', {
+      method: 'POST',
+      headers: csrfHeaders({ 'content-type': 'application/json' }),
+      body: JSON.stringify({ projectId, action, confirmMixed: !!confirmMixed })
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      const err = data && data.error ? data.error : { code: 'DOCKER_ERROR', message: 'Compose request failed.' };
+      if (err.code === 'COMPOSE_MIXED_PROJECT') return { mixed: true, err };
+      throw err;
+    }
+    return { jobId: data.jobId, streamUrl: data.streamUrl };
+  }
+
+  function openComposeRunner(projectId, streamUrl, title) {
+    const card = document.querySelector('[data-stack-id="' + CSS.escape(projectId) + '"]') || document.querySelector('[data-runner="' + CSS.escape(projectId) + '"]') && document.querySelector('[data-runner="' + CSS.escape(projectId) + '"]').closest('[data-stack-id]');
+    let runner = document.querySelector('[data-runner="' + CSS.escape(projectId) + '"]');
+    if (!runner && card) runner = card.querySelector('[data-runner]');
+    if (!runner) return;
+    runner.hidden = false;
+    const out = runner.querySelector('[data-runner-output]');
+    const state = runner.querySelector('[data-runner-state]');
+    const exitEl = runner.querySelector('[data-runner-exit]');
+    const copyBtn = runner.querySelector('[data-runner-copy]');
+    const titleEl = runner.querySelector('[data-runner-title]');
+    if (titleEl && title) titleEl.textContent = title;
+    if (out) out.textContent = '';
+    if (exitEl) exitEl.textContent = '';
+    if (copyBtn) copyBtn.hidden = true;
+    if (state) state.textContent = '● running';
+
+    let es;
+    try { es = new EventSource(streamUrl); } catch {
+      if (state) state.textContent = 'error';
+      if (exitEl) exitEl.textContent = 'Could not open compose stream.';
+      return;
+    }
+    es.addEventListener('out', (e) => {
+      try {
+        const d = JSON.parse(e.data);
+        if (!out) return;
+        const span = document.createElement('span');
+        span.className = d.stream === 'stderr' ? 'out-stderr' : 'out-stdout';
+        span.textContent = (d.line || '') + '\n';
+        out.appendChild(span);
+        out.scrollTop = out.scrollHeight;
+      } catch { /* ignore */ }
+    });
+    function finish(text, ok) {
+      if (state) state.textContent = ok ? 'done' : 'failed';
+      if (exitEl) exitEl.textContent = text;
+      if (copyBtn && out) copyBtn.hidden = false;
+      try { es.close(); } catch { /* ignore */ }
+    }
+    es.addEventListener('exit', (e) => {
+      try {
+        const d = JSON.parse(e.data);
+        const code = d.code;
+        const dur = d.durationMs ? ' · ' + (d.durationMs / 1000).toFixed(1) + ' s' : '';
+        finish('exit code ' + code + dur, code === 0);
+        if (code === 0) toast('Compose finished (exit 0).', 'ok'); else toast('Compose failed (exit ' + code + ').', 'error');
+      } catch { finish('finished', false); }
+    });
+    es.addEventListener('error', (e) => {
+      if (e.data) {
+        try { const d = JSON.parse(e.data); finish(d.message || 'Compose error', false); return; } catch { /* ignore */ }
+      }
+      // connection error after possible completion: ignore if already closed
+    });
+    if (copyBtn) copyBtn.addEventListener('click', () => {
+      const text = out ? out.textContent || '' : '';
+      if (navigator.clipboard) navigator.clipboard.writeText(text).then(() => toast('Output copied.', 'ok')).catch(() => {});
+      else { toast('Copy not available.', 'error'); }
+    }, { once: true });
+  }
+
+  document.addEventListener('click', async (e) => {
+    const up = e.target.closest('[data-compose-up]');
+    const down = e.target.closest('[data-compose-down]');
+    if (!up && !down) return;
+    e.preventDefault();
+    const btn = up || down;
+    const projectId = btn.getAttribute(up ? 'data-compose-up' : 'data-compose-down');
+    const action = up ? 'up' : 'down';
+    const card = btn.closest('[data-stack-id]');
+    const name = card ? card.getAttribute('data-stack-name') : projectId;
+
+    if (action === 'down') {
+      const ok = window.confirm('Run "docker compose down" for "' + name + '"?\nThis stops and removes the project containers. Volumes and images are kept.');
+      if (!ok) return;
+    }
+
+    btn.disabled = true;
+    try {
+      let result = await startCompose(projectId, action, false);
+      if (result.mixed) {
+        const ok = window.confirm('This project contains containers not created by this Compose file.\nDown anyway?');
+        if (!ok) { btn.disabled = false; return; }
+        result = await startCompose(projectId, action, true);
+      }
+      if (result.jobId) {
+        openComposeRunner(projectId, result.streamUrl, name + ' · ' + action);
+        toast('Compose ' + action + ' started for ' + name + '.', 'ok');
+      }
+    } catch (err) {
+      const msg = err && err.message ? err.message : 'Compose request failed.';
+      toast(msg, 'error');
+    } finally {
+      btn.disabled = false;
+    }
+  });
+
+
 })();

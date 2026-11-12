@@ -15,6 +15,8 @@ const { createQueries } = require('./docker/queries');
 const { createActions } = require('./docker/actions');
 const { createLogService } = require('./docker/logs');
 const { createEventService } = require('./docker/events');
+const { createStatsService } = require('./docker/stats');
+const { createComposeService } = require('./compose');
 const { resolveSelf } = require('./docker/self');
 const { createApp } = require('./app');
 
@@ -38,18 +40,23 @@ async function main() {
   const actions = createActions({ env, pool, store, queries, activity, log });
   const logsSvc = createLogService({ pool, store, log });
   const events = createEventService({ pool, bus, queries, store, log });
+  const stats = createStatsService({ pool, store, log });
+  const compose = createComposeService({ env, store, pool, log, activity, bus });
   pool.syncHosts();
 
   const shutdownHooks = [];
-  // Close log/event streams on host switch and process shutdown.
+  // Close log/event/stats streams on host switch and process shutdown.
   pool.on('deactivate', (hostId) => {
     logsSvc.closeAll(hostId);
     events.deactivate(hostId);
+    stats.closeHost(hostId);
   });
   shutdownHooks.push(() => logsSvc.closeAll());
   shutdownHooks.push(() => events.close());
+  shutdownHooks.push(() => stats.closeAll());
+  shutdownHooks.push(() => compose.runner.stop());
 
-  const app = createApp({ env, log, store, bus, pool, queries, actions, activity, limiter, logs: logsSvc, events, shutdownHooks });
+  const app = createApp({ env, log, store, bus, pool, queries, actions, activity, limiter, logs: logsSvc, events, stats, compose, shutdownHooks });
 
   const server = app.listen(env.port, env.bindAddress, () => {
     log.info('boot', { port: env.port, bind: env.bindAddress, configState: store.getState() });

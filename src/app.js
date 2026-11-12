@@ -17,6 +17,7 @@ const { pagesRouter } = require('./web/routes/pages');
 const { apiRouter } = require('./web/routes/api');
 const { streamRouter } = require('./web/routes/stream');
 const { logsRouter } = require('./web/routes/logs');
+const { composeRouter } = require('./web/routes/compose');
 
 function createApp(ctx) {
   const { log } = ctx;
@@ -56,6 +57,7 @@ function createApp(ctx) {
   app.use(apiRouter(ctx));
   app.use(streamRouter(ctx));
   app.use(logsRouter(ctx));
+  app.use(composeRouter(ctx));
 
   app.use(notFound);
   app.use(errorHandler(log));

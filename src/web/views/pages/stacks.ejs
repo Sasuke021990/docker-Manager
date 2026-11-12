@@ -1,0 +1,115 @@
+<%
+  const stacksList = stacks || [];
+  const probeState = compose ? compose.state : 'unknown';
+%>
+<div class="page-head">
+  <div>
+    <h1>Stacks</h1>
+    <p class="page-sub">Compose projects on <%= hostFrame.name %><% if (compose && compose.version) { %> · Compose <%= compose.version %><% } %></p>
+  </div>
+  <div class="page-actions">
+    <a class="btn" href="/stacks" title="Refresh stacks">
+      <svg class="icon" aria-hidden="true"><use href="/assets/icons.svg#i-refresh"></use></svg>
+      Refresh
+    </a>
+  </div>
+</div>
+
+<section class="page-body">
+  <% if (error) { %>
+    <div class="error-banner" role="alert">
+      <div class="error-banner-text">
+        <strong>Could not load stacks</strong>
+        <p class="mono"><%= error.message %></p>
+      </div>
+      <a class="btn" href="/stacks">Retry</a>
+    </div>
+  <% } %>
+
+  <% if (rootError) { %>
+    <div class="error-banner" role="alert">
+      <div class="error-banner-text">
+        <strong>Compose folder unavailable</strong>
+        <p class="mono"><%= rootError %></p>
+      </div>
+    </div>
+  <% } %>
+
+  <% if (probeState === 'missing' || probeState === 'cli-missing') { %>
+    <div class="error-banner" role="alert">
+      <div class="error-banner-text">
+        <strong>Compose unavailable</strong>
+        <p><%= (compose && compose.message) || 'The docker compose plugin is not installed in this container. Compose actions are disabled; container-level actions still work.' %></p>
+      </div>
+    </div>
+  <% } %>
+
+  <% if (!stacksList.length && !error && !rootError) { %>
+    <div class="empty-state">
+      <svg class="icon empty-icon" aria-hidden="true"><use href="/assets/icons.svg#i-container"></use></svg>
+      <p>No Compose stacks detected on this host. Put compose files in <code><%= folder || '/compose' %></code> or start compose-managed containers and they will appear here.</p>
+    </div>
+  <% } %>
+
+  <% stacksList.forEach((s) => { %>
+    <% const runningCount = (s.states && s.states.running) || 0; %>
+    <% const exitedCount = (s.states && s.states.exited) || 0; %>
+    <% const isSelfStack = s.services.some((svc) => svc.name === 'docker-manager'); %>
+    <article class="stack-card" data-stack-id="<%= s.id %>" data-stack-name="<%= s.name %>">
+      <header class="stack-head">
+        <div>
+          <h2 class="stack-name"><%= s.name %></h2>
+          <p class="stack-meta">
+            <%= s.serviceCount %> service<%= s.serviceCount === 1 ? '' : 's' %>
+            · <%= runningCount %> running
+            <% if (exitedCount) { %>· <%= exitedCount %> exited<% } %>
+            <% if (s.file) { %> · <span class="mono"><%= s.file %></span><% } %>
+          </p>
+          <% if (!s.runnable && s.reason) { %>
+            <p class="stack-reason"><%= s.reason %></p>
+          <% } %>
+          <% if (isSelfStack) { %>
+            <p class="stack-reason">This project runs Docker Manager. Taking it down would stop this UI — use the host.</p>
+          <% } %>
+        </div>
+        <div class="stack-actions">
+          <% const composeOk = s.runnable && probeState === 'available'; %>
+          <% const busy = busy && busy.busy; %>
+          <button class="btn" type="button" data-compose-up="<%= s.id %>" <%= (!composeOk || busy) ? 'disabled' : '' %> title="<%= busy ? 'Another compose job is running' : (!composeOk ? (s.reason || 'Compose unavailable') : 'Run docker compose up -d') %>">Up</button>
+          <% if (!isSelfStack) { %>
+            <button class="btn btn-danger" type="button" data-compose-down="<%= s.id %>" <%= (!composeOk || busy) ? 'disabled' : '' %> title="<%= busy ? 'Another compose job is running' : (!composeOk ? (s.reason || 'Compose unavailable') : 'Run docker compose down') %>">Down…</button>
+          <% } %>
+        </div>
+      </header>
+      <div class="stack-services">
+        <% if (!s.services.length) { %>
+          <p class="empty-hint">No containers currently associated with this project.</p>
+        <% } %>
+        <% s.services.forEach((svc) => { %>
+          <div class="stack-service-row" data-container-id="<%= svc.containerId %>">
+            <span class="stack-svc-state"><%- include('../partials/state-badge', { state: svc.state, health: null, status: svc.status }) %></span>
+            <a class="stack-svc-name" href="/containers/<%= svc.containerId %>"><%= svc.service || svc.name %></a>
+            <span class="stack-svc-image mono"><%= svc.image || '—' %></span>
+            <span class="stack-svc-status"><%= svc.status || svc.state %></span>
+            <span class="stack-svc-actions">
+              <a class="text-btn" href="/containers/<%= svc.containerId %>/logs">Logs</a>
+              <a class="text-btn" href="/containers/<%= svc.containerId %>">Details</a>
+            </span>
+          </div>
+        <% }) %>
+      </div>
+      <div class="compose-runner" data-runner="<%= s.id %>" hidden>
+        <div class="compose-runner-head">
+          <strong>Compose · <span data-runner-title><%= s.name %></span></strong>
+          <span class="compose-runner-state" data-runner-state></span>
+        </div>
+        <pre class="compose-output mono" data-runner-output></pre>
+        <div class="compose-runner-foot">
+          <span data-runner-exit></span>
+          <span class="compose-runner-note">Compose keeps running if you close this panel.</span>
+          <button class="text-btn" type="button" data-runner-copy hidden>Copy output</button>
+        </div>
+      </div>
+    </article>
+  <% }) %>
+</section>

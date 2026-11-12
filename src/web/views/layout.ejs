@@ -19,6 +19,7 @@
       </a>
       <nav class="nav" aria-label="Primary">
         <a class="nav-link<%= currentPath.startsWith('/containers') ? ' is-active' : '' %>" href="/containers"<%= currentPath.startsWith('/containers') ? ' aria-current="page"' : '' %>>Containers</a>
+        <a class="nav-link<%= currentPath.startsWith('/stacks') ? ' is-active' : '' %>" href="/stacks"<%= currentPath.startsWith('/stacks') ? ' aria-current="page"' : '' %>>Stacks</a>
         <a class="nav-link<%= currentPath.startsWith('/images') ? ' is-active' : '' %>" href="/images"<%= currentPath.startsWith('/images') ? ' aria-current="page"' : '' %>>Images</a>
         <a class="nav-link<%= currentPath.startsWith('/volumes') ? ' is-active' : '' %>" href="/volumes"<%= currentPath.startsWith('/volumes') ? ' aria-current="page"' : '' %>>Volumes</a>
         <a class="nav-link<%= currentPath.startsWith('/networks') ? ' is-active' : '' %>" href="/networks"<%= currentPath.startsWith('/networks') ? ' aria-current="page"' : '' %>>Networks</a>

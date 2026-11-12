@@ -18,7 +18,7 @@ function icon(name, cls) {
 }
 
 function pagesRouter(ctx) {
-  const { store, queries, logs, events } = ctx;
+  const { store, queries, logs, events, compose } = ctx;
   const router = express.Router();
 
   function baseLocals(req) {
@@ -209,6 +209,30 @@ function pagesRouter(ctx) {
     } catch (err) {
       next(err);
     }
+  });
+
+  // FR-070…FR-078: stacks page (compose projects, up/down, output).
+  router.get('/stacks', async (req, res, next) => {
+    const hostId = store.get().settings.activeHostId;
+    let error = null;
+    let data = { stacks: [], folder: '/compose', rootError: null, compose: { state: 'unknown', version: null, message: null }, busy: { busy: false } };
+    try {
+      if (!compose) throw new DockerError('DOCKER_ERROR', 'Compose service unavailable.');
+      data = await compose.listPublic(hostId);
+    } catch (err) {
+      const mapped = err instanceof DockerError ? err : mapDockerError(err);
+      error = { code: mapped.code, message: mapped.message };
+    }
+    renderPage(req, res, next, 'pages/stacks', {
+      title: 'Stacks',
+      stacks: data.stacks || [],
+      folder: data.folder,
+      rootError: data.rootError,
+      compose: data.compose || { state: 'unknown', version: null, message: null },
+      busy: data.busy || { busy: false },
+      error,
+      hostFrame: queries.hostFrame(hostId)
+    });
   });
 
   return router;

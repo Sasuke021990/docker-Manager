@@ -12,7 +12,7 @@ function activeHostId(store) {
 }
 
 function apiRouter(ctx) {
-  const { store, queries, activity, actions, events } = ctx;
+  const { store, queries, activity, actions, events, stats } = ctx;
   const router = express.Router();
 
   router.get('/api/containers', async (req, res, next) => {
@@ -142,6 +142,13 @@ function apiRouter(ctx) {
     const list = events.list(hostId, 500);
     const filtered = since !== null ? list.filter((e) => e.at >= since) : list;
     res.json({ events: filtered.slice(-limit) });
+  });
+
+  // FR-050/FR-051: live stats stream for a container (SSE samples).
+  router.get('/api/containers/:id/stats/stream', (req, res, next) => {
+    if (!stats) return next(new DockerError('DOCKER_ERROR', 'Stats service unavailable.'));
+    const stream = stats.streamStats(req, res, activeHostId(store), req.params.id);
+    if (!stream) return; // origin rejected -> 403 already sent
   });
 
   // FR-020…FR-029: the only mutating Docker endpoints (design §4.2.2).
