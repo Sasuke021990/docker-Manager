@@ -5,6 +5,15 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title><%= (typeof title !== 'undefined' && title) ? title + ' · Docker Manager' : 'Docker Manager' %></title>
   <link rel="stylesheet" href="/assets/app.css">
+  <%# PWA (FR-103, FR-104): manifest + theme colour per scheme + iOS metas.
+      Installability degrades gracefully on plain HTTP (§11.3.3). %>
+  <link rel="manifest" href="/manifest.webmanifest">
+  <meta name="theme-color" media="(prefers-color-scheme: light)" content="#F6F7F5">
+  <meta name="theme-color" media="(prefers-color-scheme: dark)" content="#0C1116">
+  <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="Docker Mgr">
   <meta name="csrf-token" content="<%= csrfToken %>">
   <meta name="stop-timeout" content="<%= settings.stopTimeoutSeconds %>">
   <script src="/assets/app.js" defer></script>
@@ -70,7 +79,7 @@
     <%- body %>
   </main>
   <footer class="app-foot">Docker Manager <%= appVersion %> · <%= hostFrame.apiVersion ? 'API ' + hostFrame.apiVersion + ' · ' : '' %>private network, no authentication</footer>
-  <div class="toast-stack" id="toasts"></div>
+  <div class="toast-stack" id="toasts" role="status" aria-live="polite" aria-atomic="false"></div>
 
   <%# Shared row menu (C-13): one element, repositioned per trigger by app.js.
       Items are enabled/hidden per container state and self-guard. %>
@@ -92,7 +101,7 @@
       by app.js. Cancel is focused on open; the request sends only on the
       confirm button. %>
   <div class="modal-backdrop" hidden data-confirm-backdrop>
-    <div class="modal" role="dialog" aria-modal="true" aria-labelledby="confirm-title" aria-describedby="confirm-body" data-confirm-dialog>
+    <div class="modal" role="dialog" aria-modal="true" aria-labelledby="confirm-title" aria-describedby="confirm-body" data-confirm-dialog data-testid="confirm-dialog">
       <h2 class="modal-title" id="confirm-title"></h2>
       <div class="modal-body" id="confirm-body">
         <p data-confirm-consequence></p>
@@ -108,7 +117,7 @@
       </div>
       <div class="modal-foot">
         <button class="btn" type="button" data-confirm-cancel>Cancel</button>
-        <button class="btn btn-danger" type="button" data-confirm-ok><span data-confirm-ok-label></span></button>
+        <button class="btn btn-danger" type="button" data-confirm-ok data-testid="confirm-action"><span data-confirm-ok-label></span></button>
       </div>
     </div>
   </div>

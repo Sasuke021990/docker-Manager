@@ -866,6 +866,13 @@ code { font-family: var(--font-mono); font-size: 13px; }
   .conn-live .conn-dot { animation: none; }
 }
 
+/* ---------- forced colours (§11.4.5): backgrounds are stripped, so a
+     border keeps every state and control distinguishable ---------- */
+@media (forced-colors: active) {
+  .btn, .seg-btn, .input, .chip, .card-wrap, .toast, .error-banner,
+  .conn-dot, .dot, .state-badge { border: 1px solid CanvasText; }
+}
+
 /* ---------- P2: toasts, row menu (C-13), dialog (§7.6),
      activity drawer (C-07), drawer action bar (C-14) ---------- */
 

@@ -15,13 +15,13 @@
   };
   const b = map[st] || { cls: 'stopped', icon: 'circle-hollow', label: st };
 %>
-<span class="state-badge state-<%= b.cls %>" title="<%= stTxt %>">
+<span class="state-badge state-<%= b.cls %>" data-testid="state-badge" title="<%= stTxt %>">
   <span class="sr-only">State: </span>
   <svg class="state-icon" aria-hidden="true"><use href="/assets/icons.svg#i-<%= b.icon %>"></use></svg>
   <span class="state-label"><%= b.label %></span>
 </span>
 <% if (hc === 'unhealthy') { %>
-  <span class="state-badge state-dead" title="<%= stTxt %>">
+  <span class="state-badge state-dead" data-testid="state-badge" title="<%= stTxt %>">
     <svg class="state-icon" aria-hidden="true"><use href="/assets/icons.svg#i-alert-triangle"></use></svg>
     <span class="state-label">Unhealthy</span>
   </span>

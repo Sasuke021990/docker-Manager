@@ -13,7 +13,7 @@
     </p>
   </div>
   <div class="page-actions">
-    <a class="btn" href="/api/containers/<%= c.id %>/logs?tail=100&amp;download=1" data-log-export-link title="Download the last 100 log lines as a .log file">
+    <a class="btn" href="/api/containers/<%= c.id %>/logs?tail=100&amp;download=1" data-log-export-link data-testid="log-export" title="Download the last 100 log lines as a .log file">
       <svg class="icon" aria-hidden="true"><use href="/assets/icons.svg#i-download"></use></svg>
       Export .log
     </a>
@@ -54,7 +54,7 @@
     <span data-log-filter-status></span>
   </div>
 
-  <div class="log-pane<%= settings.showTimestamps ? '' : ' log-pane--no-ts' %>" data-log-pane tabindex="0">
+  <div class="log-pane<%= settings.showTimestamps ? '' : ' log-pane--no-ts' %>" data-log-pane data-testid="log-pane" tabindex="0">
     <% if (!snap.lines.length && !err) { %>
       <div class="empty-state log-empty" data-log-empty>
         <p>This container has not written any output yet. New lines appear here as they arrive.</p>

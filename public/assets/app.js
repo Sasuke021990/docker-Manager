@@ -61,6 +61,7 @@
     if (!wrap) return;
     const el = document.createElement('div');
     el.className = 'toast' + (kind ? ` toast--${kind}` : '');
+    el.setAttribute('data-testid', 'toast');
     el.setAttribute('role', kind === 'error' ? 'alert' : 'status');
     el.textContent = message;
     wrap.appendChild(el);
@@ -1699,6 +1700,54 @@
         }
       });
     }
+  }
+
+  // ----- PWA: service worker + install (FR-103, FR-104, §11.3) ------------
+  // Pass-through worker, secure contexts only, no error surfaced: the app
+  // works identically without it.
+  if ('serviceWorker' in navigator && window.isSecureContext) {
+    navigator.serviceWorker.register('/sw.js', { scope: '/' }).catch(() => {});
+  }
+
+  const installRow = document.querySelector('[data-install]');
+  if (installRow) {
+    const chromium = installRow.querySelector('[data-install-chromium]');
+    const ios = installRow.querySelector('[data-install-ios]');
+    const http = installRow.querySelector('[data-install-http]');
+    const standalone = window.matchMedia('(display-mode: standalone)').matches
+      || navigator.standalone === true;
+    const isIOS = (/iPad|iPhone|iPod/.test(navigator.userAgent))
+      || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+    let deferred = null;
+
+    function showOnly(el) {
+      for (const p of [chromium, ios, http]) if (p) p.hidden = p !== el;
+    }
+
+    if (!standalone && !window.isSecureContext && http) showOnly(http);
+    // iOS Safari fires no beforeinstallprompt; show the manual path on HTTPS.
+    else if (!standalone && window.isSecureContext && isIOS && ios) showOnly(ios);
+
+    window.addEventListener('beforeinstallprompt', (e) => {
+      e.preventDefault();
+      deferred = e;
+      if (!standalone && chromium) showOnly(chromium);
+    });
+
+    const btn = installRow.querySelector('[data-install-button]');
+    if (btn) {
+      btn.addEventListener('click', async () => {
+        if (!deferred) return;
+        deferred.prompt();
+        try { await deferred.userChoice; } catch { /* choice is advisory */ }
+        deferred = null;
+      });
+    }
+
+    window.addEventListener('appinstalled', () => {
+      deferred = null;
+      for (const p of [chromium, ios, http]) if (p) p.hidden = true;
+    });
   }
 
 })();
