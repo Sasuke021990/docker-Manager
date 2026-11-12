@@ -12,7 +12,7 @@ function activeHostId(store) {
 }
 
 function apiRouter(ctx) {
-  const { store, queries, activity, actions } = ctx;
+  const { store, queries, activity, actions, events } = ctx;
   const router = express.Router();
 
   router.get('/api/containers', async (req, res, next) => {
@@ -132,6 +132,16 @@ function apiRouter(ctx) {
 
   router.get('/api/activity', (req, res) => {
     res.json({ events: activity.list() });
+  });
+
+  // FR-052: chronological event feed for the selected host.
+  router.get('/api/events', (req, res) => {
+    const hostId = activeHostId(store);
+    const limit = Math.min(500, Math.max(1, Number.parseInt(req.query.limit, 10) || 500));
+    const since = req.query.since ? Number(req.query.since) : null;
+    const list = events.list(hostId, 500);
+    const filtered = since !== null ? list.filter((e) => e.at >= since) : list;
+    res.json({ events: filtered.slice(-limit) });
   });
 
   // FR-020…FR-029: the only mutating Docker endpoints (design §4.2.2).

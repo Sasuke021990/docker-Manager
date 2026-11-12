@@ -13,6 +13,8 @@ const { createLimiter } = require('./core/limits');
 const { createPool } = require('./docker/pool');
 const { createQueries } = require('./docker/queries');
 const { createActions } = require('./docker/actions');
+const { createLogService } = require('./docker/logs');
+const { createEventService } = require('./docker/events');
 const { resolveSelf } = require('./docker/self');
 const { createApp } = require('./app');
 
@@ -34,10 +36,20 @@ async function main() {
   const pool = createPool({ env, log, bus, store });
   const queries = createQueries({ pool, store, log });
   const actions = createActions({ env, pool, store, queries, activity, log });
+  const logsSvc = createLogService({ pool, store, log });
+  const events = createEventService({ pool, bus, queries, store, log });
   pool.syncHosts();
 
   const shutdownHooks = [];
-  const app = createApp({ env, log, store, bus, pool, queries, actions, activity, limiter, shutdownHooks });
+  // Close log/event streams on host switch and process shutdown.
+  pool.on('deactivate', (hostId) => {
+    logsSvc.closeAll(hostId);
+    events.deactivate(hostId);
+  });
+  shutdownHooks.push(() => logsSvc.closeAll());
+  shutdownHooks.push(() => events.close());
+
+  const app = createApp({ env, log, store, bus, pool, queries, actions, activity, limiter, logs: logsSvc, events, shutdownHooks });
 
   const server = app.listen(env.port, env.bindAddress, () => {
     log.info('boot', { port: env.port, bind: env.bindAddress, configState: store.getState() });
@@ -54,6 +66,12 @@ async function main() {
       }
     }
     pool.startProbing();
+    // Start /events for the active host once probes have run (best effort).
+    try {
+      events.activate(store.get().settings.activeHostId);
+    } catch (err) {
+      log.warn('events.start_failed', { message: err.message });
+    }
     try {
       const self = await resolveSelf(pool, env);
       log.info('boot', { selfResolved: Boolean(self) });

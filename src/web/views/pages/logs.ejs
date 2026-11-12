@@ -1,0 +1,69 @@
+<%
+  const snap = snapshot || { tty: false, lines: [], lastTs: null, desynced: false, error: null };
+  const c = container || detail || {};
+  const err = snap.error || (detail && detail.error) || null;
+%>
+<div class="page-head">
+  <div>
+    <p class="back-link"><a href="/containers/<%= c.id %>">← <%= c.name %></a></p>
+    <h1>Logs · <span class="mono"><%= c.name %></span></h1>
+    <p class="page-sub">
+      <%- include('../partials/state-badge', { state: c.state, health: c.health, status: c.status }) %>
+      <span class="mono"><%= c.image || '' %></span>
+    </p>
+  </div>
+  <div class="page-actions">
+    <a class="btn" href="/api/containers/<%= c.id %>/logs?tail=100&amp;download=1" data-log-export-link title="Download the last 100 log lines as a .log file">
+      <svg class="icon" aria-hidden="true"><use href="/assets/icons.svg#i-download"></use></svg>
+      Export .log
+    </a>
+  </div>
+</div>
+
+<section class="page-body log-page" data-log-page data-container-id="<%= c.id %>" data-container-name="<%= c.name %>" data-last-ts="<%= snap.lastTs || '' %>" data-tty="<%= snap.tty ? '1' : '0' %>" data-show-ts="<%= settings.showTimestamps ? '1' : '0' %>">
+  <% if (err) { %>
+    <div class="error-banner" role="alert">
+      <div class="error-banner-text">
+        <strong>Could not stream logs</strong>
+        <p class="mono"><%= err.message %></p>
+      </div>
+      <a class="btn" href="/containers/<%= c.id %>/logs">Retry</a>
+    </div>
+  <% } %>
+
+  <% if (snap.tty) { %>
+    <p class="log-hint">This container runs with a TTY, so stdout and stderr are merged by Docker. Lines here may include both.</p>
+  <% } %>
+  <% if (snap.desynced) { %>
+    <p class="log-hint log-hint--warn">Log framing could not be parsed; showing raw output.</p>
+  <% } %>
+
+  <div class="log-toolbar" data-log-toolbar>
+    <button class="btn" type="button" data-log-pause>Pause</button>
+    <label class="log-toggle"><input type="checkbox" data-log-autoscroll checked> Autoscroll</label>
+    <label class="log-toggle"><input type="checkbox" data-log-timestamps <%= settings.showTimestamps ? 'checked' : '' %>> Timestamps</label>
+    <label class="log-filter-wrap">/ <input class="input log-filter" type="text" placeholder="regex filter" data-log-filter maxlength="256" aria-label="Filter logs by regular expression"> /i</label>
+    <span class="log-match" data-log-match></span>
+    <label class="log-toggle"><input type="checkbox" data-log-only> Only matches</label>
+    <button class="text-btn" type="button" data-log-clear>Clear view</button>
+  </div>
+
+  <div class="log-status" data-log-status>
+    <span data-log-state>● Live</span>
+    <span data-log-buffer></span>
+    <span data-log-filter-status></span>
+  </div>
+
+  <div class="log-pane<%= settings.showTimestamps ? '' : ' log-pane--no-ts' %>" data-log-pane tabindex="0">
+    <% if (!snap.lines.length && !err) { %>
+      <div class="empty-state log-empty" data-log-empty>
+        <p>This container has not written any output yet. New lines appear here as they arrive.</p>
+      </div>
+    <% } %>
+    <% snap.lines.forEach((l) => { %>
+      <div class="log-line log-<%= l.s === 'err' ? 'err' : 'out' %>" data-stream="<%= l.s %>"><% if (l.ts) { %><span class="log-ts"><%= l.ts.replace('T',' ').replace('Z','') %></span><% } else { %><span class="log-ts"></span><% } %><span class="log-s"><%= l.s === 'err' ? 'E' : '' %></span><span class="log-m"><%= l.m %></span></div>
+    <% }) %>
+  </div>
+
+  <div class="log-jump" hidden data-log-jump><button class="btn" type="button">Jump to latest (<span data-log-new>0</span> new)</button></div>
+</section>

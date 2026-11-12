@@ -22,6 +22,7 @@
         <a class="nav-link<%= currentPath.startsWith('/images') ? ' is-active' : '' %>" href="/images"<%= currentPath.startsWith('/images') ? ' aria-current="page"' : '' %>>Images</a>
         <a class="nav-link<%= currentPath.startsWith('/volumes') ? ' is-active' : '' %>" href="/volumes"<%= currentPath.startsWith('/volumes') ? ' aria-current="page"' : '' %>>Volumes</a>
         <a class="nav-link<%= currentPath.startsWith('/networks') ? ' is-active' : '' %>" href="/networks"<%= currentPath.startsWith('/networks') ? ' aria-current="page"' : '' %>>Networks</a>
+        <a class="nav-link<%= currentPath.startsWith('/events') ? ' is-active' : '' %>" href="/events"<%= currentPath.startsWith('/events') ? ' aria-current="page"' : '' %>>Events</a>
       </nav>
       <div class="header-cluster">
         <span class="host-chip" title="Active host — switch in Settings (config.json)">
@@ -33,8 +34,12 @@
           <span class="conn-dot" aria-hidden="true"></span>
           <span class="conn-text" aria-live="polite"><%= hostFrame.state === 'reachable' ? 'Live' : 'Offline' %></span>
         </span>
-        <button class="icon-btn" type="button" data-activity-open aria-label="Activity, last 100 actions">
+        <a class="icon-btn event-bell" href="/events" data-event-bell aria-label="Events, no unread">
           <svg class="icon" aria-hidden="true"><use href="/assets/icons.svg#i-bell"></use></svg>
+          <span class="event-badge" data-event-badge hidden>0</span>
+        </a>
+        <button class="icon-btn" type="button" data-activity-open aria-label="Activity, last 100 actions">
+          <svg class="icon" aria-hidden="true"><use href="/assets/icons.svg#i-activity"></use></svg>
         </button>
         <button class="icon-btn" id="theme-toggle" type="button" aria-pressed="<%= theme === 'dark' ? 'true' : 'false' %>" aria-label="Switch to dark theme">
           <svg class="icon" aria-hidden="true"><use href="/assets/icons.svg#i-<%= theme === 'dark' ? 'sun' : 'moon' %>"></use></svg>
@@ -52,6 +57,7 @@
       Items are enabled/hidden per container state and self-guard. %>
   <div class="row-menu" role="menu" aria-label="Container actions" hidden data-row-menu>
     <a class="row-menu-item" role="menuitem" href="#" data-menu-details>Open details</a>
+    <a class="row-menu-item" role="menuitem" href="#" data-menu-logs>View logs</a>
     <button class="row-menu-item" role="menuitem" type="button" data-act="start">Start</button>
     <button class="row-menu-item" role="menuitem" type="button" data-act="restart">Restart</button>
     <button class="row-menu-item" role="menuitem" type="button" data-act="pause">Pause</button>

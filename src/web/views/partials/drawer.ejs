@@ -25,6 +25,7 @@
 
     <div class="drawer-tabs">
       <a class="drawer-tab<%= tab === 'overview' ? ' is-active' : '' %>" href="?tab=overview" data-drawer-tab="overview" aria-selected="<%= tab === 'overview' %>">Overview</a>
+      <a class="drawer-tab" href="/containers/<%= d.id %>/logs">Logs</a>
       <a class="drawer-tab<%= tab === 'config' ? ' is-active' : '' %>" href="?tab=config" data-drawer-tab="config" aria-selected="<%= tab === 'config' %>">Config</a>
     </div>
 

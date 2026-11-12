@@ -18,7 +18,7 @@ function icon(name, cls) {
 }
 
 function pagesRouter(ctx) {
-  const { store, queries } = ctx;
+  const { store, queries, logs, events } = ctx;
   const router = express.Router();
 
   function baseLocals(req) {
@@ -166,6 +166,49 @@ function pagesRouter(ctx) {
     queries.getNetwork(store.get().settings.activeHostId, req.params.id)
       .then((item) => renderFragment(req, res, next, 'partials/resource-drawer', { kind: 'network', item }))
       .catch(next);
+  });
+
+  // FR-052/FR-053: event feed. Opening the page is the "clear badge" moment
+  // on the client; the server render is the snapshot.
+  router.get('/events', (req, res, next) => {
+    const hostId = store.get().settings.activeHostId;
+    const list = events ? events.list(hostId, 500) : [];
+    renderPage(req, res, next, 'pages/events', {
+      title: 'Events',
+      events: list.slice().reverse(), // newest first
+      hostFrame: queries.hostFrame(hostId)
+    });
+  });
+
+  // FR-040/FR-041: log page. First 100 lines are server-rendered so they
+  // exist before JS/SSE; the stream continues with after=<last ts>.
+  router.get('/containers/:id/logs', async (req, res, next) => {
+    try {
+      const hostId = store.get().settings.activeHostId;
+      const detail = await queries.getContainer(hostId, req.params.id).catch((err) => {
+        const mapped = err instanceof DockerError ? err : mapDockerError(err);
+        return { id: req.params.id, name: req.params.id.slice(0, 12), image: '', state: 'unknown', status: '', health: null, error: { code: mapped.code, message: mapped.message } };
+      });
+      let snap = { tty: false, lines: [], lastTs: null, desynced: false, error: null };
+      if (!detail.error) {
+        try {
+          const tail = store.get().settings.logTailLines || 100;
+          snap = await logs.fetchSnapshot(hostId, req.params.id, tail, true);
+        } catch (err) {
+          const mapped = err instanceof DockerError ? err : mapDockerError(err);
+          snap = { tty: false, lines: [], lastTs: null, desynced: false, error: { code: mapped.code, message: mapped.message } };
+        }
+      }
+      renderPage(req, res, next, 'pages/logs', {
+        title: `Logs · ${detail.name || req.params.id}`,
+        detail,
+        container: { id: detail.id || req.params.id, name: detail.name || req.params.id, image: detail.image || '', state: detail.state || 'unknown', status: detail.status || '', health: detail.health || null },
+        snapshot: snap,
+        hostFrame: queries.hostFrame(hostId)
+      });
+    } catch (err) {
+      next(err);
+    }
   });
 
   return router;

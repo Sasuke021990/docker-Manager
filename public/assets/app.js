@@ -52,7 +52,7 @@
 
   // ----- toasts (design §6.6.6) ------------------------------------------
   function toast(message, kind) {
-    const wrap = document.querySelector('[data-toasts]');
+    const wrap = document.getElementById('toasts') || document.querySelector('[data-toasts]');
     if (!wrap) return;
     const el = document.createElement('div');
     el.className = 'toast' + (kind ? ` toast--${kind}` : '');
@@ -272,13 +272,15 @@
   // ----- updated-ago ticker ----------------------------------------------
   // P1: data-updated-ago refreshes each minute (P3 SSE extends this).
   window.setInterval(() => {
-    document.querySelectorAll('[data-updated-ago]').forEach((el) => {
-      const then = Number(el.getAttribute('data-updated-ago'));
+    document.querySelectorAll('[data-updated-at]').forEach((el) => {
+      const then = Number(el.getAttribute('data-updated-at'));
       if (!then) return;
       const secs = Math.max(0, Math.floor((Date.now() - then) / 1000));
-      el.textContent = `updated ${secs}s ago`;
+      if (secs < 60) el.textContent = `${secs}s ago`;
+      else if (secs < 3600) el.textContent = `${Math.floor(secs / 60)}m ago`;
+      else el.textContent = `${Math.floor(secs / 3600)}h ago`;
     });
-  }, 1000);
+  }, 10000);
 
   // ----- sort select navigates (server-side sort is authoritative) --------
   const sortSelect = document.querySelector('[data-sort-select]');
@@ -351,6 +353,8 @@
     });
     const details = rowMenu.querySelector('[data-menu-details]');
     if (details) details.setAttribute('href', `/containers/${encodeURIComponent(ctx.id)}`);
+    const logsLink = rowMenu.querySelector('[data-menu-logs]');
+    if (logsLink) logsLink.setAttribute('href', `/containers/${encodeURIComponent(ctx.id)}/logs`);
     rowMenu.hidden = false;
     const r = trigger.getBoundingClientRect();
     const w = 210;
@@ -687,5 +691,569 @@
   if (bootToastMsg) {
     sessionStorage.removeItem('dm-toast');
     toast(bootToastMsg, 'ok');
+  }
+
+  // ==================================================================
+  // P3 — live event stream, connection indicator, unread badge,
+  // browser notifications (FR-002, FR-052-056, FR-105), log view,
+  // events page. Event-driven only — no polling.
+  // ==================================================================
+
+  const connPill = document.getElementById('conn-pill');
+  function setConn(state) {
+    if (!connPill) return;
+    connPill.classList.remove('conn-live', 'conn-offline', 'conn-reconnecting');
+    const text = connPill.querySelector('.conn-text');
+    if (state === 'live') {
+      connPill.classList.add('conn-live');
+      if (text) text.textContent = 'Live';
+    } else if (state === 'reconnecting') {
+      connPill.classList.add('conn-reconnecting');
+      if (text) text.textContent = 'Reconnecting';
+    } else {
+      connPill.classList.add('conn-offline');
+      if (text) text.textContent = 'Offline';
+    }
+  }
+
+  // ----- unread badge (FR-053) -------------------------------------------
+  const eventBell = document.querySelector('[data-event-bell]');
+  const eventBadge = document.querySelector('[data-event-badge]');
+  let unread = 0;
+  const CLEARED_KEY = 'dm-events-cleared-seq';
+  let clearedSeq = Number(sessionStorage.getItem(CLEARED_KEY) || '0') || 0;
+  let badgeTimer = null;
+  let pendingUnread = 0;
+
+  function renderBadge() {
+    if (!eventBadge || !eventBell) return;
+    const labelCount = unread > 99 ? '99+' : String(unread);
+    if (unread <= 0) {
+      eventBadge.hidden = true;
+      eventBadge.textContent = '0';
+      eventBell.setAttribute('aria-label', 'Events, no unread');
+    } else {
+      eventBadge.hidden = false;
+      eventBadge.textContent = labelCount;
+      eventBell.setAttribute('aria-label', `Events, ${unread} unread`);
+    }
+  }
+
+  function bumpUnread() {
+    pendingUnread += 1;
+    if (badgeTimer) return;
+    badgeTimer = setTimeout(() => {
+      unread += pendingUnread;
+      pendingUnread = 0;
+      badgeTimer = null;
+      renderBadge();
+    }, 2000);
+  }
+  function _flushUnread() {
+    if (badgeTimer) { clearTimeout(badgeTimer); badgeTimer = null; }
+    unread += pendingUnread;
+    pendingUnread = 0;
+    renderBadge();
+  }
+
+  // Visiting /events clears the badge (client-side, session-scoped).
+  if (window.location.pathname === '/events') {
+    // cleared at the latest seq we know after hello; provisional now
+    unread = 0;
+  }
+
+  // ----- browser notifications (FR-056, C-29) ----------------------------
+  const NOTIFY_KEY = 'dm-notify-enabled';
+  function notifySupported() { return typeof window.Notification !== 'undefined'; }
+  function notifyEnabled() {
+    try { return localStorage.getItem(NOTIFY_KEY) === '1'; } catch { return false; }
+  }
+  function setNotifyEnabled(v) {
+    try { localStorage.setItem(NOTIFY_KEY, v ? '1' : '0'); } catch { /* ignore */ }
+  }
+  function notifyStatusText() {
+    if (!notifySupported()) return 'Not supported by this browser';
+    const p = Notification.permission;
+    const on = notifyEnabled();
+    if (p === 'denied') return 'Off — permission denied in the browser';
+    if (p === 'granted' && on) return 'On — die/oom alerts enabled';
+    if (p === 'granted' && !on) return 'Off — permission granted, alerts paused';
+    return 'Off — permission not requested yet';
+  }
+  function updateNotifyControls() {
+    document.querySelectorAll('[data-notify-control]').forEach((wrap) => {
+      const btn = wrap.querySelector('[data-notify-toggle]');
+      const status = wrap.querySelector('[data-notify-status]');
+      if (!btn || !status) return;
+      const sup = notifySupported();
+      const p = sup ? Notification.permission : 'denied';
+      const on = notifyEnabled() && p === 'granted';
+      status.textContent = notifyStatusText();
+      btn.disabled = !sup;
+      if (!sup) btn.setAttribute('aria-disabled', 'true'); else btn.removeAttribute('aria-disabled');
+      btn.textContent = on ? 'Disable' : 'Enable…';
+    });
+  }
+  document.addEventListener('click', async (e) => {
+    const btn = e.target.closest('[data-notify-toggle]');
+    if (!btn) return;
+    e.preventDefault();
+    if (!notifySupported()) return;
+    if (Notification.permission === 'granted' && notifyEnabled()) {
+      setNotifyEnabled(false);
+      updateNotifyControls();
+      return;
+    }
+    if (Notification.permission === 'default') {
+      const perm = await Notification.requestPermission(); // only on explicit click
+      if (perm === 'granted') setNotifyEnabled(true);
+    } else if (Notification.permission === 'granted') {
+      setNotifyEnabled(true);
+    }
+    updateNotifyControls();
+  });
+  updateNotifyControls();
+
+  function maybeNotify(ev) {
+    if (!notifySupported() || Notification.permission !== 'granted' || !notifyEnabled()) return;
+    if (document.visibilityState === 'visible') return;
+    const act = ev.action;
+    if (act !== 'die' && act !== 'oom') return;
+    const exit = ev.attributes && ev.attributes.exitCode;
+    const body = act === 'oom' ? 'OOM killed' : `Exited with code ${exit !== undefined ? exit : '?'}`;
+    try {
+      const n = new Notification(ev.name || ev.containerId || 'Container', {
+        body,
+        tag: `dcm-${ev.containerId || ev.name}`,
+        icon: '/assets/icons.svg'
+      });
+      n.onclick = () => {
+        window.focus();
+        window.location.href = `/containers/${encodeURIComponent(ev.containerId || '')}`;
+      };
+    } catch { /* ignore */ }
+  }
+
+  // ----- live container list updates (event-driven, no polling) ----------
+  const onContainersPage = /^\/containers(\/[^/]+)?$/.test(window.location.pathname);
+  function _escAttr(s) {
+    if (window.CSS && CSS.escape) return CSS.escape(s);
+    return String(s).replace(/["\\]/g, '\\$&');
+  }
+  async function refetchContainers() {
+    if (!onContainersPage) return;
+    const url = new URL('/api/containers', window.location.origin);
+    const sp = new URLSearchParams(window.location.search);
+    ['state', 'q', 'sort', 'dir'].forEach((k) => { if (sp.has(k)) url.searchParams.set(k, sp.get(k)); });
+    try {
+      const r = await fetch(url.toString());
+      if (!r.ok) return;
+      const data = await r.json();
+      updateCounts(data.counts);
+      // Event-driven resync: reload preserves server-rendered fidelity.
+      if (!document.querySelector('[data-drawer].is-open')) window.location.reload();
+    } catch { /* best effort */ }
+  }
+
+  function updateCounts(counts) {
+    if (!counts) return;
+    const sub = document.querySelector('.page-sub');
+    if (sub) {
+      const parts = [`${counts.all} containers`, `${counts.running} running`, `${counts.stopped} stopped`, `${counts.paused} paused`];
+      const m = sub.textContent.match(/·\s*daemon\s+.+$/);
+      sub.textContent = parts.join(' · ') + (m ? ' ' + m[0] : '');
+    }
+    document.querySelectorAll('[data-state-chip]').forEach((chip) => {
+      const st = chip.getAttribute('data-state-chip');
+      const n = counts[st] !== undefined ? counts[st] : counts.all;
+      const countEl = chip.querySelector('.chip-count');
+      if (countEl) countEl.textContent = String(n);
+    });
+  }
+
+  let resyncTimer = null;
+  function scheduleResync() {
+    if (resyncTimer) return;
+    resyncTimer = setTimeout(() => { resyncTimer = null; refetchContainers(); }, 150);
+  }
+
+  // ----- /api/stream connection ------------------------------------------
+  let streamEs = null;
+  let streamWatchdog = null;
+  function clearWatchdog() {
+    if (streamWatchdog) { clearTimeout(streamWatchdog); streamWatchdog = null; }
+  }
+  function kickWatchdog() {
+    clearWatchdog();
+    streamWatchdog = setTimeout(() => setConn('offline'), 45000);
+  }
+
+  function connectStream() {
+    if (streamEs) try { streamEs.close(); } catch { /* ignore */ }
+    streamEs = new EventSource('/api/stream');
+    kickWatchdog();
+
+    streamEs.addEventListener('open', () => {
+      setConn('live');
+      kickWatchdog();
+    });
+
+    streamEs.addEventListener('hello', (e) => {
+      kickWatchdog();
+      try {
+        const msg = JSON.parse(e.data);
+        const seq = msg.data && msg.data.seq;
+        if (window.location.pathname === '/events' && typeof seq === 'number') {
+          clearedSeq = seq;
+          sessionStorage.setItem(CLEARED_KEY, String(clearedSeq));
+          unread = 0; pendingUnread = 0; renderBadge();
+        } else if (typeof seq === 'number' && seq <= clearedSeq) {
+          unread = 0; renderBadge();
+        }
+      } catch { /* ignore */ }
+    });
+
+    streamEs.addEventListener('docker.event', (e) => {
+      kickWatchdog();
+      try {
+        const msg = JSON.parse(e.data);
+        const ev = msg.data || msg;
+        if (window.location.pathname !== '/events' && (ev.seq || 0) > clearedSeq) {
+          bumpUnread();
+        }
+        maybeNotify(ev);
+        if (window.location.pathname === '/events') {
+          appendLiveEvent(ev);
+          if (typeof ev.seq === 'number') {
+            clearedSeq = ev.seq;
+            sessionStorage.setItem(CLEARED_KEY, String(clearedSeq));
+          }
+        }
+      } catch { /* ignore */ }
+    });
+
+    const onContainerChange = () => { kickWatchdog(); if (onContainersPage) scheduleResync(); };
+    streamEs.addEventListener('container.upsert', onContainerChange);
+    streamEs.addEventListener('container.remove', onContainerChange);
+
+    streamEs.addEventListener('resync', () => {
+      kickWatchdog();
+      if (onContainersPage) scheduleResync();
+    });
+
+    streamEs.addEventListener('host.health', (e) => {
+      kickWatchdog();
+      try {
+        const msg = JSON.parse(e.data);
+        const st = (msg.data || msg).state;
+        if (st === 'reachable') setConn('live');
+        else if (st === 'reconnecting' || st === 'connecting') setConn('reconnecting');
+        else setConn('offline');
+      } catch { /* ignore */ }
+    });
+
+    streamEs.addEventListener('error', () => {
+      clearWatchdog();
+      setConn('reconnecting');
+      // EventSource auto-reconnects; we reflect state.
+    });
+  }
+
+  // Connect stream on pages that benefit from it (all app pages).
+  if (document.querySelector('.app-header')) {
+    try { connectStream(); } catch { setConn('offline'); }
+  }
+
+  // ----- events page live append -----------------------------------------
+  function appendLiveEvent(ev) {
+    const feed = document.querySelector('[data-event-feed]');
+    if (!feed) return;
+    const empty = document.querySelector('[data-events-empty]');
+    if (empty) empty.hidden = true;
+    const d = new Date((ev.at || Date.now() / 1000) * 1000);
+    const time = Number.isNaN(d.getTime()) ? '--:--:--' : d.toLocaleTimeString('en-GB', { hour12: false });
+    const act = ev.action || '';
+    const warn = (act === 'die' && ev.attributes && Number(ev.attributes.exitCode) !== 0) || act === 'oom' || ev.health === 'unhealthy';
+    const tag = act === 'oom' ? 'oom' : (ev.health === 'unhealthy' ? 'unhealthy' : (act === 'die' && ev.attributes && ev.attributes.exitCode ? 'exit ' + ev.attributes.exitCode : ''));
+    const summary = act === 'die' ? ('Exited' + (ev.attributes && ev.attributes.exitCode ? ' with code ' + ev.attributes.exitCode : ''))
+      : act === 'start' ? 'Started' : act === 'create' ? 'Created' : act === 'restart' ? 'Restarted'
+      : act === 'destroy' ? 'Destroyed' : act === 'oom' ? 'OOM killed'
+      : ev.health === 'unhealthy' ? 'Became unhealthy' : ev.health === 'healthy' ? 'Became healthy' : (act || 'event');
+
+    const row = document.createElement('article');
+    row.className = 'event-row event-new' + (warn ? ' event-warn' : '');
+    row.setAttribute('data-event', '');
+    row.setAttribute('data-seq', ev.seq || '');
+    row.setAttribute('data-action', act);
+    row.setAttribute('data-name', ev.name || '');
+    row.setAttribute('data-container-id', ev.containerId || '');
+
+    const t = document.createElement('time');
+    t.className = 'event-time mono numeric';
+    t.textContent = time;
+    const chip = document.createElement('span');
+    chip.className = 'event-chip event-chip--' + act;
+    chip.textContent = act || 'event';
+    const name = document.createElement('a');
+    name.className = 'event-name mono row-link';
+    name.href = '/containers/' + encodeURIComponent(ev.containerId || '');
+    name.textContent = ev.name || ev.containerId || '';
+    const msg = document.createElement('span');
+    msg.className = 'event-msg';
+    if (tag) {
+      const tg = document.createElement('span');
+      tg.className = 'event-tag';
+      tg.textContent = tag;
+      msg.append(tg, document.createTextNode(' ' + summary));
+    } else {
+      msg.textContent = summary;
+    }
+    row.append(t, chip, name, msg);
+    feed.prepend(row);
+    setTimeout(() => row.classList.remove('event-new'), 700);
+  }
+
+  // events page filters
+  document.addEventListener('click', (e) => {
+    const chip = e.target.closest('[data-event-filter]');
+    if (!chip) return;
+    document.querySelectorAll('[data-event-filter]').forEach((c) => {
+      const on = c === chip;
+      c.classList.toggle('is-active', on);
+      c.setAttribute('aria-pressed', on ? 'true' : 'false');
+    });
+    applyEventFilter();
+  });
+  const eventQ = document.querySelector('[data-event-q]');
+  if (eventQ) eventQ.addEventListener('input', applyEventFilter);
+  function applyEventFilter() {
+    const active = document.querySelector('[data-event-filter].is-active');
+    const mode = active ? active.getAttribute('data-event-filter') : 'all';
+    const q = eventQ ? eventQ.value.trim().toLowerCase() : '';
+    document.querySelectorAll('[data-event]').forEach((row) => {
+      const act = row.getAttribute('data-action') || '';
+      const name = (row.getAttribute('data-name') || '').toLowerCase();
+      const text = row.textContent.toLowerCase();
+      let ok = true;
+      if (mode === 'health') ok = act === 'health_status';
+      else if (mode === 'oom') ok = act === 'oom';
+      else if (mode === 'container') ok = act !== 'health_status';
+      if (ok && q) ok = name.includes(q) || text.includes(q);
+      row.hidden = !ok;
+    });
+  }
+
+  // ----- log view controller (FR-040…FR-049, §7.3) -----------------------
+  const logPage = document.querySelector('[data-log-page]');
+  if (logPage) {
+    const cid = logPage.getAttribute('data-container-id');
+    const cname = logPage.getAttribute('data-container-name') || cid;
+    const pane = document.querySelector('[data-log-pane]');
+    const stateEl = document.querySelector('[data-log-state]');
+    const bufferEl = document.querySelector('[data-log-buffer]');
+    const filterEl = document.querySelector('[data-log-filter]');
+    const matchEl = document.querySelector('[data-log-match]');
+    const pauseBtn = document.querySelector('[data-log-pause]');
+    const autoCb = document.querySelector('[data-log-autoscroll]');
+    const tsCb = document.querySelector('[data-log-timestamps]');
+    const onlyCb = document.querySelector('[data-log-only]');
+    const jump = document.querySelector('[data-log-jump]');
+    const jumpN = document.querySelector('[data-log-new]');
+    let paused = false;
+    let autoscroll = autoCb ? autoCb.checked : true;
+    let showTs = tsCb ? tsCb.checked : true;
+    let buffer = [];
+    let lastTs = logPage.getAttribute('data-last-ts') || null;
+    let newCount = 0;
+    let dropped = 0;
+
+    function updateStatus(text) { if (stateEl) stateEl.textContent = text; }
+
+    // textContent used for log output (no HTML injection).
+
+    function lineEl(l) {
+      const div = document.createElement('div');
+      div.className = 'log-line log-' + (l.s === 'err' ? 'err' : 'out');
+      div.setAttribute('data-stream', l.s || 'out');
+      const ts = document.createElement('span');
+      ts.className = 'log-ts';
+      ts.textContent = showTs && l.ts ? l.ts.replace('T', ' ').replace('Z', '') : '';
+      const mk = document.createElement('span');
+      mk.className = 'log-s';
+      mk.textContent = l.s === 'err' ? 'E' : '';
+      const m = document.createElement('span');
+      m.className = 'log-m';
+      m.textContent = l.m || '';
+      div.append(ts, mk, m);
+      return div;
+    }
+
+    function renderVisible() {
+      if (!pane) return;
+      const prevScroll = pane.scrollTop;
+      const atBottom = pane.scrollHeight - pane.scrollTop - pane.clientHeight < 24;
+      pane.innerHTML = '';
+      const start = Math.max(0, buffer.length - 1500);
+      for (let i = start; i < buffer.length; i += 1) pane.appendChild(lineEl(buffer[i]));
+      if (autoscroll || atBottom) pane.scrollTop = pane.scrollHeight;
+      else pane.scrollTop = prevScroll;
+    }
+
+    function trimBuffer() {
+      while (buffer.length > 5000) { buffer.shift(); dropped += 1; }
+      if (bufferEl) bufferEl.textContent = `· ${buffer.length} lines` + (dropped ? ` · ${dropped} dropped` : '');
+    }
+
+    function pushLine(l) {
+      buffer.push(l);
+      if (l.ts) lastTs = l.ts;
+      trimBuffer();
+      if (paused) {
+        newCount += 1;
+        return;
+      }
+      if (!pane) return;
+      const atBottom = pane.scrollHeight - pane.scrollTop - pane.clientHeight < 24;
+      if (buffer.length <= 1500 || !atBottom) {
+        pane.appendChild(lineEl(l));
+        while (pane.children.length > 1500) pane.removeChild(pane.firstChild);
+      } else {
+        renderVisible();
+      }
+      if (autoscroll && atBottom) pane.scrollTop = pane.scrollHeight;
+      else if (!atBottom) {
+        newCount += 1;
+        if (jump) { jump.hidden = false; if (jumpN) jumpN.textContent = String(newCount); }
+        autoscroll = false;
+        if (autoCb) autoCb.checked = false;
+      }
+    }
+
+    if (pauseBtn) pauseBtn.addEventListener('click', () => {
+      paused = !paused;
+      pauseBtn.textContent = paused ? `Resume${newCount ? ` (${newCount} new)` : ''}` : 'Pause';
+      updateStatus(paused ? `❚❚ Paused · ${newCount} new lines` : '● Live');
+      if (!paused) { renderVisible(); newCount = 0; if (jump) jump.hidden = true; }
+    });
+    if (autoCb) autoCb.addEventListener('change', () => {
+      autoscroll = autoCb.checked;
+      if (autoscroll && pane) { pane.scrollTop = pane.scrollHeight; newCount = 0; if (jump) jump.hidden = true; }
+    });
+    if (tsCb) tsCb.addEventListener('change', () => {
+      showTs = tsCb.checked;
+      if (pane) pane.classList.toggle('log-pane--no-ts', !showTs);
+      renderVisible();
+    });
+    if (pane) pane.addEventListener('scroll', () => {
+      const atBottom = pane.scrollHeight - pane.scrollTop - pane.clientHeight < 24;
+      if (!atBottom && autoscroll) { autoscroll = false; if (autoCb) autoCb.checked = false; }
+      if (atBottom) { newCount = 0; if (jump) jump.hidden = true; }
+    });
+    const jumpBtn = document.querySelector('[data-log-jump] button');
+    if (jumpBtn) jumpBtn.addEventListener('click', () => {
+      autoscroll = true; if (autoCb) autoCb.checked = true;
+      if (pane) pane.scrollTop = pane.scrollHeight;
+      newCount = 0; if (jump) jump.hidden = true;
+    });
+    const clearBtn = document.querySelector('[data-log-clear]');
+    if (clearBtn) clearBtn.addEventListener('click', () => {
+      buffer = []; dropped = 0; newCount = 0;
+      if (pane) pane.innerHTML = '';
+      if (bufferEl) bufferEl.textContent = '';
+      if (jump) jump.hidden = true;
+      toast('View cleared.', 'ok');
+    });
+    const exportLink = document.querySelector('[data-log-export-link]');
+    if (exportLink) exportLink.addEventListener('click', (e) => {
+      e.preventDefault();
+      const last = buffer.slice(-100);
+      if (!last.length) { toast('No lines to export.', 'error'); return; }
+      const text = last.map((l) => (l.ts ? l.ts + ' ' : '') + l.m).join('\n') + '\n';
+      const blob = new Blob([text], { type: 'text/plain;charset=utf-8' });
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      // eslint-disable-next-line no-control-regex
+      const safe = String(cname).replace(/[\x00-\x1f\x7f/\\?%*:|"<>]/g, '-').slice(0, 80) || 'container';
+      const st = new Date().toISOString().replace(/:/g, '-').replace(/\.\d{3}Z$/, '');
+      a.download = `${safe}-${st}.log`;
+      a.click();
+      URL.revokeObjectURL(a.href);
+      toast(`Exported ${last.length} lines from ${cname}.`, 'ok');
+    });
+
+    // Seed buffer from server-rendered lines
+    if (pane) {
+      pane.querySelectorAll('.log-line').forEach((el) => {
+        const s = el.getAttribute('data-stream') || 'out';
+        const ts = (el.querySelector('.log-ts') || {}).textContent || null;
+        const m = (el.querySelector('.log-m') || {}).textContent || '';
+        buffer.push({ s, ts: ts && ts.trim() ? ts.trim().replace(' ', 'T') + 'Z' : null, m });
+      });
+      trimBuffer();
+    }
+
+    // SSE follow
+    let logEs = null;
+    function connectLog(afterTs) {
+      const u = `/api/containers/${encodeURIComponent(cid)}/logs/stream?tail=0${afterTs ? '&after=' + encodeURIComponent(afterTs) : ''}`;
+      logEs = new EventSource(u);
+      logEs.addEventListener('line', (e) => {
+        try { const d = JSON.parse(e.data); pushLine({ s: d.s, ts: d.ts, m: d.m }); } catch { /* ignore */ }
+      });
+      logEs.addEventListener('state', (e) => {
+        try {
+          const d = JSON.parse(e.data);
+          if (d.state === 'live') updateStatus('● Live');
+          else if (d.state === 'closed') { updateStatus('Stream closed · ' + (d.reason || 'ended')); if (logEs) logEs.close(); }
+          else if (d.state === 'error') {
+            updateStatus('Could not stream logs');
+            toast(d.message || 'Log stream error', 'error');
+          }
+        } catch { /* ignore */ }
+      });
+      logEs.addEventListener('error', () => {
+        updateStatus('◌ Reconnecting…');
+      });
+    }
+    // snapshot already rendered; follow from last rendered ts
+    const initialAfter = lastTs || buffer.length ? (buffer[buffer.length - 1] && buffer[buffer.length - 1].ts) || lastTs : null;
+    try { connectLog(initialAfter); } catch { updateStatus('Could not stream logs'); }
+
+    // Simple regex filter (FR-042) — debounced, view-only highlight/dim
+    let filterTimer = null;
+    function applyFilter() {
+      if (!pane) return;
+      const pat = filterEl ? filterEl.value : '';
+      const only = onlyCb ? onlyCb.checked : false;
+      let re = null;
+      let invalid = false;
+      if (pat) {
+        if (pat.length > 256) { invalid = true; }
+        else { try { re = new RegExp(pat, 'i'); } catch { invalid = true; } }
+      }
+      if (matchEl) matchEl.textContent = invalid ? 'Invalid regular expression' : '';
+      let matches = 0;
+      pane.querySelectorAll('.log-line').forEach((el) => {
+        const m = el.querySelector('.log-m');
+        if (!m) return;
+        const text = m.textContent || '';
+        if (!re || invalid) {
+          el.classList.remove('log-dim');
+          el.hidden = false;
+          // strip marks
+          m.textContent = text;
+          return;
+        }
+        const hit = re.test(text.slice(0, 8192));
+        if (hit) matches += 1;
+        if (only) { el.hidden = !hit; el.classList.remove('log-dim'); }
+        else { el.hidden = false; el.classList.toggle('log-dim', !hit); }
+        // simple highlight without HTML injection
+        m.textContent = text;
+      });
+      if (matchEl && re && !invalid) matchEl.textContent = `${matches} matches`;
+    }
+    if (filterEl) filterEl.addEventListener('input', () => { clearTimeout(filterTimer); filterTimer = setTimeout(applyFilter, 120); });
+    if (onlyCb) onlyCb.addEventListener('change', applyFilter);
   }
 })();

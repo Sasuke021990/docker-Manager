@@ -1,0 +1,65 @@
+<div class="page-head">
+  <div>
+    <h1>Events</h1>
+    <p class="page-sub">Chronological feed for <%= hostFrame.name %>. New events arrive live.</p>
+  </div>
+  <div class="page-actions">
+    <label class="notify-control" data-notify-control>
+      <span class="notify-label">Notify on die/oom</span>
+      <button class="btn" type="button" data-notify-toggle>Enable…</button>
+      <span class="notify-status" data-notify-status>Off — permission not requested yet</span>
+    </label>
+  </div>
+</div>
+
+<section class="page-body events-page" data-events-page>
+  <div class="events-toolbar">
+    <div class="chip-group" role="group" aria-label="Event filters">
+      <button class="chip is-active" type="button" data-event-filter="all" aria-pressed="true">All</button>
+      <button class="chip" type="button" data-event-filter="container" aria-pressed="false">Container</button>
+      <button class="chip" type="button" data-event-filter="health" aria-pressed="false">Health</button>
+      <button class="chip" type="button" data-event-filter="oom" aria-pressed="false">OOM</button>
+    </div>
+    <input class="input filter-search" type="search" placeholder="Filter by name or message" data-event-q aria-label="Filter events">
+  </div>
+
+  <div class="event-jump" hidden data-event-jump><button class="btn" type="button">New events ↑</button></div>
+
+  <% if (!events.length) { %>
+    <div class="empty-state" data-events-empty>
+      <p>No events yet. Start or stop a container and it will appear here.</p>
+    </div>
+  <% } %>
+
+  <div class="event-feed" data-event-feed data-hello-seq="0">
+    <% let lastMinute = ''; %>
+    <% events.forEach((ev) => {
+         const d = new Date(ev.at * 1000);
+         const minute = Number.isNaN(d.getTime()) ? '' : d.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
+         const time = Number.isNaN(d.getTime()) ? '--:--:--' : d.toLocaleTimeString('en-GB', { hour12: false });
+         const act = ev.action || '';
+         const warn = (act === 'die' && ev.attributes && Number(ev.attributes.exitCode) !== 0) || act === 'oom' || ev.health === 'unhealthy';
+         const tag = act === 'oom' ? 'oom' : (ev.health === 'unhealthy' ? 'unhealthy' : (act === 'die' && ev.attributes && ev.attributes.exitCode ? 'exit ' + ev.attributes.exitCode : ''));
+         const summary = act === 'die' ? ('Exited' + (ev.attributes && ev.attributes.exitCode ? ' with code ' + ev.attributes.exitCode : ''))
+           : act === 'start' ? 'Started'
+           : act === 'create' ? 'Created'
+           : act === 'restart' ? 'Restarted'
+           : act === 'destroy' ? 'Destroyed'
+           : act === 'oom' ? 'OOM killed'
+           : ev.health === 'unhealthy' ? 'Became unhealthy'
+           : ev.health === 'healthy' ? 'Became healthy'
+           : (act || 'event');
+    %>
+      <% if (minute && minute !== lastMinute) { lastMinute = minute; %>
+        <div class="event-sep" aria-hidden="true"><%= minute %></div>
+      <% } %>
+      <article class="event-row<%= warn ? ' event-warn' : '' %>" data-event data-seq="<%= ev.seq || '' %>" data-action="<%= act %>" data-name="<%= ev.name || '' %>" data-container-id="<%= ev.containerId || '' %>">
+        <time class="event-time mono numeric"><%= time %></time>
+        <span class="event-chip event-chip--<%= act %>"><%= act || 'event' %></span>
+        <a class="event-name mono row-link" href="/containers/<%= ev.containerId %>"><%= ev.name || ev.containerId %></a>
+        <span class="event-msg"><% if (tag) { %><span class="event-tag"><%= tag %></span> <% } %><%= summary %></span>
+      </article>
+    <% }) %>
+  </div>
+  <p class="list-foot event-foot" data-event-cap-note hidden>Older events are not retained.</p>
+</section>
